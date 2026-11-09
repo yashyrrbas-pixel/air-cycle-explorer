@@ -1,0 +1,1253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Interactive 3D explorer for the Otto, Diesel, Dual, Brayton and Carnot cycles, with rotatable 3D engines, an engine calculator and a formula sheet.">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px/1.5 system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Air Cycle Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: instrument-panel split. Controls rail on the left, a large 3D state-space viewport on the right, readouts and state tables below. */
+:root{
+  --bg:#E8ECF0; --panel:#F7F9FB; --ink:#16202B; --ink-2:#526070; --line:#C8D0D9;
+  --accent:#0F7A5C; --accent-soft:#D5EDE5;
+  --hot:#D2461F; --cold:#1A72B5; --neutral:#5D6B7B; --surf:#7C91A8;
+  --warn-bg:#FFF1D6; --warn-ink:#7A4B00;
+  --display:"Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E141B; --panel:#151D26; --ink:#E3E9F0; --ink-2:#93A2B2; --line:#2A3644;
+  --accent:#3FCB9C; --accent-soft:#16352C;
+  --hot:#FF7B4F; --cold:#55B4F2; --neutral:#9AA8B8; --surf:#7189A6;
+  --warn-bg:#3A2C10; --warn-ink:#F5C46B; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#0E141B; --panel:#151D26; --ink:#E3E9F0; --ink-2:#93A2B2; --line:#2A3644;
+  --accent:#3FCB9C; --accent-soft:#16352C;
+  --hot:#FF7B4F; --cold:#55B4F2; --neutral:#9AA8B8; --surf:#7189A6;
+  --warn-bg:#3A2C10; --warn-ink:#F5C46B; color-scheme:dark;}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.5}
+.wrap{max-width:1280px;margin:0 auto;padding-block:28px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:22px}
+header{display:flex;flex-direction:column;gap:6px}
+.eyebrow{font:500 11px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2)}
+h1{font:700 clamp(30px,5vw,46px)/1 var(--display);letter-spacing:-.01em;margin:0;text-wrap:balance}
+h1 span{color:var(--accent)}
+.lede{margin:0;color:var(--ink-2);max-width:62ch}
+h2{font:600 13px/1.2 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);margin:0}
+.layout{display:grid;grid-template-columns:270px minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:880px){.layout{grid-template-columns:minmax(0,1fr)}.stage{order:-1}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px}
+aside{padding:18px;display:flex;flex-direction:column;gap:20px}
+.cycles{display:grid;grid-template-columns:1fr;gap:6px}
+@media (max-width:880px){.cycles{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}}
+.cyc{all:unset;cursor:pointer;display:flex;flex-direction:column;gap:1px;padding:9px 12px;border:1px solid var(--line);border-radius:4px;background:var(--bg)}
+.cyc b{font:600 18px/1.1 var(--display)}
+.cyc small{font-size:12px;color:var(--ink-2)}
+.cyc[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent)}
+.cyc:focus-visible,.seg button:focus-visible,.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.group{display:flex;flex-direction:column;gap:14px}
+.field{display:flex;flex-direction:column;gap:4px}
+.field .row{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.field label{font-size:13px;font-weight:500}
+.field output{font:500 13px var(--mono);font-variant-numeric:tabular-nums;color:var(--accent)}
+input[type=range]{width:100%;accent-color:var(--accent);margin:0}
+.note{font-size:12px;color:var(--ink-2);margin:0;border-top:1px solid var(--line);padding-top:14px}
+.btn{all:unset;cursor:pointer;font:500 12px var(--mono);color:var(--ink-2);border:1px solid var(--line);border-radius:4px;padding:6px 10px;align-self:flex-start}
+.btn:hover{color:var(--ink);border-color:var(--ink-2)}
+.stage{display:flex;flex-direction:column;gap:10px;min-width:0}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:4px;overflow:hidden;background:var(--panel)}
+.seg button{all:unset;cursor:pointer;font:500 12px var(--mono);padding:6px 10px;color:var(--ink-2);border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--panel)}
+.tg{display:inline-flex;align-items:center;gap:6px;font:500 12px var(--mono);color:var(--ink-2);cursor:pointer}
+.tg input{accent-color:var(--accent);margin:0}
+.viewport{position:relative;height:min(66vh,600px);min-height:340px;overflow:hidden}
+.viewport canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+.viewport canvas:active{cursor:grabbing}
+.labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.lbl{position:absolute;left:0;top:0;font:400 11px var(--mono);color:var(--ink-2);white-space:nowrap;font-variant-numeric:tabular-nums}
+.lbl.axis{font:600 12px var(--mono);color:var(--ink)}
+.lbl.wall{font:500 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);opacity:.8}
+.lbl.st{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font:600 11px var(--mono);color:var(--ink);background:var(--panel);border:1.5px solid var(--ink)}
+.chip{position:absolute;top:10px;left:10px;font:500 12px var(--mono);background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:5px 9px;display:flex;align-items:center;gap:7px;max-width:calc(100% - 20px)}
+.hint{position:absolute;bottom:10px;left:10px;font:400 11px var(--mono);color:var(--ink-2);pointer-events:none}
+.dot{width:9px;height:9px;border-radius:50%;flex:none;background:var(--neutral)}
+.dot.hot{background:var(--hot)}.dot.cold{background:var(--cold)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12px;color:var(--ink-2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:16px;height:3px;border-radius:2px;display:inline-block}
+.warn{background:var(--warn-bg);color:var(--warn-ink);border-radius:4px;padding:9px 12px;font-size:13px}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.metric{background:var(--panel);padding:14px 16px;display:flex;flex-direction:column;gap:4px}
+.metric .k{font:500 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
+.metric .v{font:600 26px/1.1 var(--display);font-variant-numeric:tabular-nums}
+.metric .v small{font:400 12px var(--mono);color:var(--ink-2);margin-left:4px}
+.metric.lead .v{font-size:38px;color:var(--accent)}
+.formula{font-size:13px;color:var(--ink-2);margin:0}
+.formula b{color:var(--ink);font-weight:500}
+.tables{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:20px}
+@media (max-width:880px){.tables{grid-template-columns:minmax(0,1fr)}}
+.tcard{padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{font:500 11px var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--ink-2);text-align:right;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+td.name{font-family:var(--body);white-space:normal;min-width:180px}
+td.name span{display:inline-flex;align-items:center;gap:8px}
+tr:last-child td{border-bottom:0}
+td.pos{color:var(--hot)}td.neg{color:var(--cold)}
+/* pages, terms, tooltip, formula sheet */
+[hidden]{display:none!important}
+.view{display:flex;flex-direction:column;gap:22px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line)}
+.tabs a{font:600 15px var(--display);letter-spacing:.02em;color:var(--ink-2);text-decoration:none;padding:8px 14px;border-bottom:3px solid transparent;margin-bottom:-1px}
+.tabs a:hover{color:var(--ink)}
+.tabs a[aria-current="page"]{color:var(--ink);border-bottom-color:var(--accent)}
+.tabs a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.term{text-decoration:underline dotted;text-decoration-color:var(--ink-2);text-underline-offset:3px;text-decoration-thickness:1px;cursor:help}
+.term:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
+.tip{position:fixed;left:0;top:0;z-index:50;max-width:min(320px,calc(100vw - 24px));background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:6px;box-shadow:0 8px 28px rgba(10,20,30,.18);padding:12px 14px;display:flex;flex-direction:column;gap:6px;font-size:13px;line-height:1.45;pointer-events:none}
+.tip b{font:600 16px/1.2 var(--display)}
+.tip p{margin:0}
+.tip .tf{font:500 12.5px var(--mono);background:var(--bg);border-radius:4px;padding:5px 8px}
+.tip .tu span{display:block;font:500 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:2px}
+.fpage{display:grid;grid-template-columns:220px minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:880px){.fpage{grid-template-columns:minmax(0,1fr)}}
+.ftoc{position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px);display:flex;flex-direction:column;gap:2px}
+@media (max-width:880px){.ftoc{position:static;flex-direction:row;flex-wrap:wrap;gap:6px}}
+.tocb{all:unset;cursor:pointer;font:500 13px var(--body);color:var(--ink-2);padding:6px 10px;border-radius:4px}
+.tocb:hover{color:var(--ink);background:var(--panel)}
+.tocb:focus-visible{outline:2px solid var(--accent)}
+@media (max-width:880px){.tocb{border:1px solid var(--line);background:var(--panel)}}
+.fbody{display:flex;flex-direction:column;gap:16px;min-width:0}
+.fg{padding:18px;display:flex;flex-direction:column;gap:8px;scroll-margin-top:16px}
+.fg h3{margin:0;font:700 22px/1.15 var(--display)}
+.fn{margin:0;color:var(--ink-2);font-size:13px;max-width:70ch}
+.fl{margin:6px 0 0;display:flex;flex-direction:column}
+.fr{display:grid;grid-template-columns:minmax(0,200px) minmax(0,1fr);gap:4px 20px;padding:10px 0;border-top:1px solid var(--line)}
+@media (max-width:600px){.fr{grid-template-columns:minmax(0,1fr)}}
+.fr dt{font-weight:500;font-size:13.5px}
+.fr dd{margin:0;display:flex;flex-direction:column;gap:3px;min-width:0}
+.fr dd p{margin:0;font-size:12.5px;color:var(--ink-2)}
+.eq{font:500 14.5px/1.5 var(--mono);color:var(--ink);overflow-wrap:anywhere}
+.eq sub,.eq sup,.tf sub,.tf sup{font-size:.72em}
+.flink{color:var(--accent);font-weight:500}
+/* side-by-side viewers */
+.wrap{max-width:1440px}
+.duo{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+@media (max-width:1100px){.duo{grid-template-columns:minmax(0,1fr)}}
+.vcol{display:flex;flex-direction:column;gap:6px;min-width:0}
+.duo .viewport{height:min(64vh,520px);min-height:340px;position:relative;overflow:hidden}
+#evp canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+.readout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:20px;padding:16px;align-items:center}
+@media (max-width:760px){.readout{grid-template-columns:minmax(0,1fr)}}
+.rleft{display:flex;flex-direction:column;gap:12px;min-width:0}
+/* engine + calculator */
+:root{--metal:#A3ADB8;--metal-2:#5F6B78;--glass:#93AFC6;--flame:#FFC24A}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--metal:#8D98A4;--metal-2:#56616E;--glass:#7FA2C0;--flame:#FFD27A}}
+:root[data-theme="dark"]{--metal:#8D98A4;--metal-2:#56616E;--glass:#7FA2C0;--flame:#FFD27A}
+.sec{display:flex;flex-direction:column;gap:14px;padding-top:18px;border-top:1px solid var(--line)}
+.sec-head{display:flex;flex-direction:column;gap:6px}
+.big{font:700 clamp(26px,3.6vw,36px)/1.1 var(--display);margin:0;text-wrap:balance;text-transform:none;letter-spacing:-.01em;color:var(--ink)}
+.engine{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:880px){.engine{grid-template-columns:minmax(0,1fr)}}
+.evp{position:relative;height:min(70vh,580px);min-height:380px;overflow:hidden}
+.evp canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+.lbl.part{font:500 11px var(--body);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:2px 6px}
+.strokes{display:grid;grid-template-columns:1fr 1fr .45fr 1fr .45fr 1fr;gap:3px}
+.strokes i{height:4px;border-radius:2px;background:var(--line)}
+.strokes i.on{background:var(--accent)}
+.stroke{display:flex;flex-direction:column;gap:4px;min-height:88px}
+.stroke b{font:600 22px/1.15 var(--display)}
+.stroke p{margin:0;font-size:13px;color:var(--ink-2)}
+.live{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px 12px}
+.live div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.live span{font:500 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
+.live b{font:500 16px var(--mono);font-variant-numeric:tabular-nums}
+@media (max-width:420px){.live{grid-template-columns:repeat(2,minmax(0,1fr))}}
+#pv{width:100%;height:210px;display:block}
+.ctrls{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+.ctrls .btn{align-self:center}
+.calc{padding:18px;display:grid;grid-template-columns:minmax(0,320px) minmax(0,1fr);gap:24px}
+@media (max-width:880px){.calc{grid-template-columns:minmax(0,1fr)}}
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-content:start}
+.nf{display:flex;flex-direction:column;gap:4px;min-width:0}
+.nf label{font-size:12px;font-weight:500}
+.nf .box{display:flex;align-items:center;border:1px solid var(--line);border-radius:4px;background:var(--bg)}
+.nf input,.nf select{all:unset;flex:1;min-width:0;padding:7px 9px;font:500 14px var(--mono);font-variant-numeric:tabular-nums;color:var(--ink)}
+.nf select{cursor:pointer;font:500 13px var(--body)}
+.nf .u{font:400 11px var(--mono);color:var(--ink-2);padding-right:9px;white-space:nowrap}
+.nf .box:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.nf.bad .box{border-color:var(--hot)}
+.nf.wide{grid-column:1/-1}
+.outs{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:20px 28px;align-content:start}
+.og h3{margin:0 0 8px;font:600 17px/1.2 var(--display)}
+.og dl{margin:0;display:grid;grid-template-columns:1fr auto;gap:5px 12px;font-size:13px}
+.og dt{color:var(--ink-2)}
+.og dd{margin:0;font:500 13px var(--mono);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.og dd.key{color:var(--accent);font-weight:600;font-size:15px}
+.steps{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px}
+.steps summary{cursor:pointer;font:600 18px var(--display)}
+.steps ol{margin:12px 0 0;padding-left:24px;display:flex;flex-direction:column;gap:7px;font-size:13px}
+.steps li{padding-left:4px}
+.steps .res{color:var(--accent);font-weight:600;font-family:var(--mono)}
+.steps .m{font-family:var(--mono);font-size:12.5px}
+.calc-note{grid-column:1/-1;margin:0;font-size:12px;color:var(--ink-2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Applied thermodynamics · Air-standard power cycles</div>
+    <h1>Air Cycle <span>Explorer</span></h1>
+    <p class="lede">Pick a cycle and watch the machine that runs it beside its path in three-dimensional state space. Both views rotate, and the dot on the graph follows the machine as it runs. Snap the graph to a face to see the classic P–v and T–s diagrams.</p>
+  </header>
+  <nav class="tabs" aria-label="Pages">
+    <a href="#explorer" data-view="explorer">Explorer</a>
+    <a href="#formulas" data-view="formulas">Formula sheet</a>
+  </nav>
+  <div id="view-explorer" class="view">
+
+  <div class="layout">
+    <aside class="panel">
+      <div class="group">
+        <h2>Cycle</h2>
+        <div class="cycles" id="cycles"></div>
+      </div>
+      <div class="group">
+        <h2>Inputs</h2>
+        <div class="group" id="inputs"></div>
+        <button class="btn" id="reset" type="button">Reset to defaults</button>
+      </div>
+      <p class="note">Cold-air-standard analysis: air as an ideal gas with R = 0.287 kJ/kg·K, γ = 1.4, c<sub>p</sub> = 1.005 and c<sub>v</sub> = 0.718 kJ/kg·K. All values are per kg of air. Entropy is measured from state 1.</p>
+    </aside>
+
+    <section class="stage">
+      <div class="toolbar">
+        <div class="seg" id="modeSeg">
+          <button type="button" data-mode="pvt" aria-pressed="true"><span class="term" data-term="pvt">P–v–T</span></button>
+          <button type="button" data-mode="ts" aria-pressed="false"><span class="term" data-term="ts">T–s–P</span></button>
+        </div>
+        <div class="seg" id="viewSeg">
+          <button type="button" data-view="iso">3D</button>
+          <button type="button" data-view="front">P–v</button>
+          <button type="button" data-view="side">P–T</button>
+          <button type="button" data-view="top">T–v</button>
+        </div>
+        <label class="tg"><input type="checkbox" id="logT"> Log axes</label>
+        <label class="tg"><input type="checkbox" id="rotT"> Auto-rotate</label>
+        <label class="tg"><input type="checkbox" id="trT"> Trace</label>
+      </div>
+      <div class="duo">
+        <div class="vcol">
+          <div class="vhead"><h2>Cycle in state space</h2></div>
+          <div class="viewport panel" id="vp">
+            <canvas id="cv" aria-label="Rotatable 3D plot of the thermodynamic cycle"></canvas>
+            <div class="labels" id="labels"></div>
+            <div class="chip" id="chip"><span class="dot" id="chipDot"></span><span id="chipTxt"></span></div>
+            <div class="hint">Drag to rotate · scroll or pinch to zoom</div>
+          </div>
+        </div>
+        <div class="vcol">
+          <div class="vhead"><h2><span id="machName" class="term" tabindex="0" data-term="mach.otto">Four-stroke petrol engine</span></h2></div>
+          <div class="viewport panel" id="evp">
+            <canvas id="ecv" aria-label="Rotatable 3D model of the machine that runs this cycle"></canvas>
+            <div class="labels" id="elabels"></div>
+            <div class="hint">Drag to rotate · scroll or pinch to zoom</div>
+          </div>
+        </div>
+      </div>
+      <div class="readout panel">
+        <div class="rleft">
+          <div class="strokes" id="strokeBar"></div>
+          <div class="stroke"><b id="sName" class="term" tabindex="0" data-term="Intake stroke"></b><p id="sNote"></p></div>
+          <div class="live">
+            <div><span id="rL1" class="term" tabindex="0" data-term="crank">Crank</span><b id="rTh">–</b></div>
+            <div><span id="rL2" class="term" tabindex="0" data-term="Vreal">Volume</span><b id="rV">–</b></div>
+            <div><span id="rL3" class="term" tabindex="0" data-term="P">Pressure</span><b id="rP">–</b></div>
+            <div><span id="rL4" class="term" tabindex="0" data-term="T">Temp</span><b id="rT">–</b></div>
+          </div>
+          <div class="ctrls">
+            <button class="btn" id="playB" type="button">Pause</button>
+            <button class="btn" id="stepB" type="button">Next step</button>
+            <label class="tg">Speed <input type="range" id="spd" min="0.2" max="2.5" step="0.1" value="1"></label>
+            <label class="tg"><input type="checkbox" id="elT" checked> Part labels</label>
+          </div>
+        </div>
+        <canvas id="pv" aria-label="Live pressure–volume diagram"></canvas>
+      </div>
+      <div class="legend" id="legend"></div>
+      <div class="warn" id="warn" hidden></div>
+    </section>
+  </div>
+
+  <div class="metrics" id="metrics"></div>
+  <p class="formula" id="formula"></p>
+
+  <div class="tables">
+    <div class="panel tcard">
+      <h2>State points</h2>
+      <div class="scroll"><table id="stTable"></table></div>
+    </div>
+    <div class="panel tcard">
+      <h2>Processes</h2>
+      <div class="scroll"><table id="prTable"></table></div>
+    </div>
+  </div>
+
+
+  <section class="sec" id="calculator">
+    <div class="sec-head">
+      <div class="eyebrow">Design calculator</div>
+      <h2 class="big">Otto engine calculator</h2>
+      <p class="lede">Type in the engine's geometry and operating point. The results, the worked solution, the 3D engine and the Otto cycle above all update together. Bore and stroke also size the piston engines for the Diesel, Dual and Carnot cycles.</p>
+    </div>
+    <div class="warn" id="cwarn" hidden></div>
+    <div class="calc panel">
+      <div class="fields" id="fields"></div>
+      <div class="outs" id="outs"></div>
+      <p class="calc-note">Ideal indicated values for a four-stroke engine (one power stroke every two crank revolutions), using cold-air-standard properties. Real engines deliver noticeably less because of heat loss, friction, pumping work, incomplete combustion and specific heats that rise with temperature.</p>
+      <details class="steps" open><summary>Worked solution</summary><ol id="steps"></ol></details>
+    </div>
+  </section>
+</div>
+  <div id="view-formulas" class="view" hidden>
+    <div class="sec-head">
+      <div class="eyebrow">Reference</div>
+      <h2 class="big">Formula sheet</h2>
+      <p class="lede">Every relation the explorer and the calculator use, grouped by topic. Point at or tap any underlined term to read its definition and where it is used.</p>
+    </div>
+    <div class="fpage">
+      <nav class="ftoc" id="fToc" aria-label="Formula topics"></nav>
+      <div class="fbody" id="fBody"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+"use strict";
+const R=0.287,k=1.4,cv=R/(k-1),cp=k*cv;
+const reduce=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
+const $=s=>document.querySelector(s);
+const fromPT=(P,T)=>({P,T,v:R*T/P});
+const fromVT=(v,T)=>({v,T,P:R*T/v});
+const pct=x=>(x*100).toFixed(1);
+
+const shared={P1:100,T1:300};
+const SHARED=[
+  {id:"P1",label:"Intake pressure P₁",unit:"kPa",min:50,max:200,step:5,dp:0},
+  {id:"T1",label:"Intake temperature T₁",unit:"K",min:250,max:350,step:5,dp:0}];
+
+const CYCLES={
+  otto:{name:"Otto",use:"Petrol engine",params:[
+      {id:"r",label:"Compression ratio r",unit:"",min:4,max:14,step:0.5,def:8,dp:1},
+      {id:"Tmax",label:"Peak temperature T₃",unit:"K",min:1000,max:3000,step:50,def:1800,dp:0}],
+    build(p,P1,T1){const s1=fromPT(P1,T1),v2=s1.v/p.r,s2=fromVT(v2,T1*Math.pow(p.r,k-1)),s3=fromVT(v2,p.Tmax),s4=fromVT(s1.v,p.Tmax*Math.pow(1/p.r,k-1));
+      return {states:[s1,s2,s3,s4],kinds:["isen","isoV","isen","isoV"],eta:1-1/Math.pow(p.r,k-1),
+        formula:"η = 1 − 1 / r<sup>γ−1</sup>",warn:p.Tmax<=s2.T?`Peak temperature must be above the end-of-compression temperature T₂ = ${Math.round(s2.T)} K.`:null};}},
+  diesel:{name:"Diesel",use:"Compression-ignition engine",params:[
+      {id:"r",label:"Compression ratio r",unit:"",min:12,max:24,step:0.5,def:18,dp:1},
+      {id:"rc",label:"Cut-off ratio r꜀",unit:"",min:1.2,max:4,step:0.1,def:2,dp:1}],
+    build(p,P1,T1){const s1=fromPT(P1,T1),s2=fromVT(s1.v/p.r,T1*Math.pow(p.r,k-1)),s3=fromPT(s2.P,s2.T*p.rc),s4=fromVT(s1.v,s3.T*Math.pow(s3.v/s1.v,k-1));
+      return {states:[s1,s2,s3,s4],kinds:["isen","isoP","isen","isoV"],eta:1-(Math.pow(p.rc,k)-1)/(k*Math.pow(p.r,k-1)*(p.rc-1)),
+        formula:"η = 1 − (r<sub>c</sub><sup>γ</sup> − 1) / [γ r<sup>γ−1</sup>(r<sub>c</sub> − 1)]",warn:null};}},
+  dual:{name:"Dual",use:"Limited-pressure engine",params:[
+      {id:"r",label:"Compression ratio r",unit:"",min:10,max:22,step:0.5,def:16,dp:1},
+      {id:"rp",label:"Pressure ratio rₚ",unit:"",min:1.1,max:2.5,step:0.05,def:1.5,dp:2},
+      {id:"rc",label:"Cut-off ratio r꜀",unit:"",min:1.1,max:3,step:0.05,def:1.6,dp:2}],
+    build(p,P1,T1){const s1=fromPT(P1,T1),s2=fromVT(s1.v/p.r,T1*Math.pow(p.r,k-1)),s3=fromVT(s2.v,s2.T*p.rp),s4=fromPT(s3.P,s3.T*p.rc),s5=fromVT(s1.v,s4.T*Math.pow(s4.v/s1.v,k-1));
+      return {states:[s1,s2,s3,s4,s5],kinds:["isen","isoV","isoP","isen","isoV"],
+        eta:1-(p.rp*Math.pow(p.rc,k)-1)/(Math.pow(p.r,k-1)*((p.rp-1)+k*p.rp*(p.rc-1))),
+        formula:"η = 1 − (r<sub>p</sub>r<sub>c</sub><sup>γ</sup> − 1) / r<sup>γ−1</sup>[(r<sub>p</sub> − 1) + γr<sub>p</sub>(r<sub>c</sub> − 1)]",warn:null};}},
+  brayton:{name:"Brayton",use:"Gas turbine / jet engine",params:[
+      {id:"rp",label:"Pressure ratio rₚ",unit:"",min:2,max:30,step:0.5,def:10,dp:1},
+      {id:"Tmax",label:"Turbine inlet temp T₃",unit:"K",min:900,max:1800,step:25,def:1400,dp:0}],
+    build(p,P1,T1){const f=Math.pow(p.rp,(k-1)/k),s1=fromPT(P1,T1),s2=fromPT(P1*p.rp,T1*f),s3=fromPT(s2.P,p.Tmax),s4=fromPT(P1,p.Tmax/f);
+      return {states:[s1,s2,s3,s4],kinds:["isen","isoP","isen","isoP"],eta:1-1/f,
+        formula:"η = 1 − 1 / r<sub>p</sub><sup>(γ−1)/γ</sup>",warn:p.Tmax<=s2.T?`Turbine inlet temperature must be above the compressor exit temperature T₂ = ${Math.round(s2.T)} K.`:null};}},
+  carnot:{name:"Carnot",use:"Reversible benchmark",params:[
+      {id:"TH",label:"Source temperature T_H",unit:"K",min:500,max:1500,step:25,def:1000,dp:0},
+      {id:"e",label:"Isothermal volume ratio",unit:"",min:1.5,max:6,step:0.1,def:3,dp:1}],
+    build(p,P1,T1){const s1=fromPT(P1,T1),s2=fromVT(s1.v/p.e,T1),s3=fromVT(s2.v*Math.pow(T1/p.TH,1/(k-1)),p.TH),s4=fromVT(s3.v*p.e,p.TH);
+      return {states:[s1,s2,s3,s4],kinds:["isoT","isen","isoT","isen"],eta:1-T1/p.TH,
+        formula:"η = 1 − T<sub>L</sub> / T<sub>H</sub>",warn:null};}}
+};
+const vals={};for(const c in CYCLES){vals[c]={};CYCLES[c].params.forEach(p=>vals[c][p.id]=p.def);}
+
+let cycle="otto",mode="pvt",logOn=false,autoRot=!reduce,traceOn=!reduce,data=null;
+try{const saved=JSON.parse(localStorage.getItem("ace-ui")||"null");if(saved&&CYCLES[saved.cycle]){cycle=saved.cycle;mode=saved.mode==="ts"?"ts":"pvt";logOn=!!saved.log;}}catch(e){}
+function remember(){try{localStorage.setItem("ace-ui",JSON.stringify({cycle,mode,log:logOn}));}catch(e){}}
+
+/* ---------- analysis ---------- */
+const TYPE={isen:"Isentropic",isoV:"Isochoric",isoP:"Isobaric",isoT:"Isothermal"};
+function procName(kind,a,b,q){
+  if(kind==="isen")return b.T>a.T?"Isentropic compression":"Isentropic expansion";
+  if(kind==="isoV")return q>0?"Constant-volume heat addition":"Constant-volume heat rejection";
+  if(kind==="isoP")return q>0?"Constant-pressure heat addition":"Constant-pressure heat rejection";
+  return q>0?"Isothermal expansion, heat in":"Isothermal compression, heat out";
+}
+function analyze(){
+  const P1=shared.P1,T1=shared.T1,res=CYCLES[cycle].build(vals[cycle],P1,T1);
+  const ent=(P,T)=>cp*Math.log(T/T1)-R*Math.log(P/P1);
+  res.states.forEach(s=>s.s=ent(s.P,s.T));
+  const n=res.states.length;
+  res.procs=res.kinds.map((kind,i)=>{
+    const a=res.states[i],b=res.states[(i+1)%n];let q=0;
+    if(kind==="isoV")q=cv*(b.T-a.T);else if(kind==="isoP")q=cp*(b.T-a.T);else if(kind==="isoT")q=R*a.T*Math.log(b.v/a.v);
+    const w=q-cv*(b.T-a.T),pts=[],N=64;
+    for(let j=0;j<=N;j++){const t=j/N;let v,T;
+      if(kind==="isen"){v=a.v*Math.pow(b.v/a.v,t);T=a.T*Math.pow(a.v/v,k-1);}
+      else if(kind==="isoV"){v=a.v;T=a.T+(b.T-a.T)*t;}
+      else if(kind==="isoP"){T=a.T+(b.T-a.T)*t;v=R*T/a.P;}
+      else{v=a.v*Math.pow(b.v/a.v,t);T=a.T;}
+      const P=R*T/v;pts.push({P,v,T,s:ent(P,T)});}
+    return {from:i+1,to:(i+1)%n+1,kind,q,w,pts,name:procName(kind,a,b,q),heat:q>1e-6?"hot":q<-1e-6?"cold":"none"};
+  });
+  res.qin=res.procs.reduce((s,p)=>s+Math.max(p.q,0),0);
+  res.qout=res.procs.reduce((s,p)=>s+Math.max(-p.q,0),0);
+  res.wnet=res.qin-res.qout;
+  res.etaCalc=res.qin>0?res.wnet/res.qin:NaN;
+  const vs=res.states.map(s=>s.v),Ts=res.states.map(s=>s.T);
+  res.mep=res.wnet/(Math.max(...vs)-Math.min(...vs));
+  res.carnot=1-Math.min(...Ts)/Math.max(...Ts);
+  return res;
+}
+
+/* ---------- controls ---------- */
+function fmtVal(v,dp){return Number(v).toFixed(dp);}
+function renderCycles(){
+  $("#cycles").innerHTML=Object.entries(CYCLES).map(([id,c])=>`<button type="button" class="cyc" data-c="${id}" aria-pressed="${id===cycle}"><b><span class="term" data-term="cycle.${id}">${c.name}</span></b><small>${c.use}</small></button>`).join("");
+}
+function slider(id,p,val,key){
+  return `<div class="field"><div class="row"><label for="${id}">${term(p.label,key)}</label><output id="${id}-o">${fmtVal(val,p.dp)}${p.unit?" "+p.unit:""}</output></div>
+  <input type="range" id="${id}" min="${p.min}" max="${p.max}" step="${p.step}" value="${val}"></div>`;
+}
+function renderInputs(){
+  const C=CYCLES[cycle];
+  $("#inputs").innerHTML=SHARED.map(p=>slider("in-"+p.id,p,shared[p.id],p.id)).join("")+C.params.map(p=>slider(`in-${cycle}-${p.id}`,p,vals[cycle][p.id],GLOSS[cycle+"."+p.id]?cycle+"."+p.id:p.id)).join("");
+  SHARED.forEach(p=>bind("in-"+p.id,p,v=>shared[p.id]=v));
+  C.params.forEach(p=>bind(`in-${cycle}-${p.id}`,p,v=>vals[cycle][p.id]=v));
+}
+function bind(id,p,set){
+  const el=document.getElementById(id),out=document.getElementById(id+"-o");
+  el.addEventListener("input",()=>{const v=parseFloat(el.value);set(v);out.textContent=fmtVal(v,p.dp)+(p.unit?" "+p.unit:"");update();});
+}
+$("#cycles").addEventListener("click",e=>{const b=e.target.closest(".cyc");if(!b)return;cycle=b.dataset.c;eT=0;remember();renderCycles();renderInputs();update(true);});
+$("#reset").addEventListener("click",()=>{shared.P1=100;shared.T1=300;CYCLES[cycle].params.forEach(p=>vals[cycle][p.id]=p.def);renderInputs();update();});
+
+/* ---------- results ---------- */
+function f(v,d){return Number(v).toLocaleString("en-IN",{minimumFractionDigits:d,maximumFractionDigits:d});}
+function renderResults(d){
+  $("#metrics").innerHTML=[
+    ["Thermal efficiency",pct(d.etaCalc),"%","lead","eta"],
+    ["Net work",f(d.wnet,1),"kJ/kg","","wnet"],
+    ["Heat added",f(d.qin,1),"kJ/kg","","qin"],
+    ["Heat rejected",f(d.qout,1),"kJ/kg","","qout"],
+    ["Mean effective pressure",f(d.mep,0),"kPa","","mep"],
+    ["Carnot limit",pct(d.carnot),"%","","carnotlim"]
+  ].map(([kk,v,u,c,key])=>`<div class="metric ${c||""}"><span class="k">${term(kk,key)}</span><span class="v">${v}<small>${u}</small></span></div>`).join("");
+  $("#formula").innerHTML=`<a class="flink" href="#formulas">Open the formula sheet</a> · Closed-form check: <b>${d.formula} = ${pct(d.eta)}%</b>. Carnot limit uses the cycle's lowest and highest temperatures (${Math.round(Math.min(...d.states.map(s=>s.T)))} K and ${Math.round(Math.max(...d.states.map(s=>s.T)))} K).`;
+  $("#stTable").innerHTML=`<thead><tr><th>State</th><th>${term("P (kPa)","P")}</th><th>${term("v (m³/kg)","v")}</th><th>${term("T (K)","T")}</th><th>${term("s (kJ/kg·K)","s")}</th></tr></thead><tbody>`+
+    d.states.map((s,i)=>`<tr><td>${i+1}</td><td>${f(s.P,s.P>=1000?0:1)}</td><td>${s.v.toFixed(4)}</td><td>${f(s.T,1)}</td><td>${s.s.toFixed(4)}</td></tr>`).join("")+"</tbody>";
+  $("#prTable").innerHTML=`<thead><tr><th>Process</th><th>Path</th><th>Type</th><th>${term("q (kJ/kg)","q")}</th><th>${term("w (kJ/kg)","w")}</th></tr></thead><tbody>`+
+    d.procs.map(p=>`<tr><td>${p.from}→${p.to}</td><td class="name"><span><i class="dot ${p.heat}"></i>${term(p.name,p.name)}</span></td><td>${term(TYPE[p.kind],p.kind)}</td>
+    <td class="${p.q>1e-6?"pos":p.q<-1e-6?"neg":""}">${f(p.q,1)}</td><td>${f(p.w,1)}</td></tr>`).join("")+"</tbody>";
+  const w=$("#warn");w.hidden=!d.warn;w.textContent=d.warn||"";
+}
+
+/* ---------- 3D scene ---------- */
+const canvas=$("#cv"),vp=$("#vp"),labelLayer=$("#labels");
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.setClearColor(0x000000,0);
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(30,1,0.1,100);
+scene.add(new THREE.AmbientLight(0xffffff,0.75));
+const sun=new THREE.DirectionalLight(0xffffff,0.55);sun.position.set(3,5,4);scene.add(sun);
+let mapPt=null,root=null,walls={},labels=[],tracer=null,procVecs=[],SX=2.5,SY=1.7,SZ=1.7;
+let theta=0.75,phi=1.12,radius=6.6,sx=1,sy=1,sz=1,tween=null,traceU=0;
+
+const META={P:{sym:"P",unit:"kPa"},v:{sym:"v",unit:"m³/kg"},T:{sym:"T",unit:"K"},s:{sym:"s",unit:"kJ/kg·K"}};
+const MODES={pvt:["v","P","T"],ts:["s","T","P"]};
+function tok(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()||"#888888";}
+
+function mkAxis(key,size,pts){
+  let mn=Infinity,mx=-Infinity;pts.forEach(p=>{mn=Math.min(mn,p[key]);mx=Math.max(mx,p[key]);});
+  const log=logOn&&key!=="s";
+  if(log){const a=Math.log(mn),b=Math.log(mx),pad=(b-a)*0.07||0.1;mn=Math.exp(a-pad);mx=Math.exp(b+pad);}
+  else{const pad=(mx-mn)*0.07||1;mn-=pad;mx+=pad;if(key!=="s"&&mn<0)mn=0;}
+  const lo=log?Math.log(mn):mn,hi=log?Math.log(mx):mx;
+  return {key,size,log,min:mn,max:mx,
+    norm:v=>((log?Math.log(v):v)-lo)/(hi-lo),
+    at:t=>log?Math.exp(lo+t*(hi-lo)):lo+t*(hi-lo),
+    map(v){return (this.norm(v)-0.5)*size;}};
+}
+function niceTicks(a,b,n){
+  const span=b-a,step0=span/n,mag=Math.pow(10,Math.floor(Math.log10(step0))),r=step0/mag;
+  const step=(r<1.5?1:r<3?2:r<7?5:10)*mag,out=[];
+  for(let v=Math.ceil(a/step)*step;v<=b+1e-9;v+=step)out.push(Math.abs(v)<step*1e-6?0:v);
+  return out;
+}
+function logTicks(a,b){
+  const out=[];for(let e=Math.floor(Math.log10(a));e<=Math.ceil(Math.log10(b));e++)[1,2,5].forEach(m=>{const v=m*Math.pow(10,e);if(v>=a&&v<=b)out.push(v);});
+  return out.length>=2?out:niceTicks(a,b,4);
+}
+function fmtTick(v){if(v===0)return"0";const a=Math.abs(v);if(a>=1000)return Math.round(v).toLocaleString("en-IN");return String(Number(v.toPrecision(a<1?2:3)));}
+
+function disposeTree(o){o.traverse(c=>{if(c.geometry)c.geometry.dispose();if(c.material)(Array.isArray(c.material)?c.material:[c.material]).forEach(m=>m.dispose());});}
+function lineMat(color,opacity){return new THREE.LineBasicMaterial({color:new THREE.Color(color),transparent:true,opacity,depthWrite:false});}
+function segs(arr,mat){const g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.Float32BufferAttribute(arr,3));return new THREE.LineSegments(g,mat);}
+function poly(vecs,mat){return new THREE.Line(new THREE.BufferGeometry().setFromPoints(vecs),mat);}
+function addLabel(text,cls,get){const el=document.createElement("div");el.className="lbl "+cls;el.textContent=text;labelLayer.appendChild(el);labels.push({el,get});}
+
+function rebuildScene(d){
+  if(root){scene.remove(root);disposeTree(root);}
+  root=new THREE.Group();scene.add(root);labelLayer.innerHTML="";labels=[];
+  const C={ink:tok("--ink"),ink2:tok("--ink-2"),line:tok("--line"),hot:tok("--hot"),cold:tok("--cold"),neutral:tok("--neutral"),surf:tok("--surf")};
+  const heatCol=h=>h==="hot"?C.hot:h==="cold"?C.cold:C.neutral;
+  const all=[].concat(...d.procs.map(p=>p.pts));
+  const [kx,ky,kz]=MODES[mode];
+  const X=mkAxis(kx,SX,all),Y=mkAxis(ky,SY,all),Z=mkAxis(kz,SZ,all);
+  const hx=SX/2,hy=SY/2,hz=SZ/2;
+  const V=(p)=>new THREE.Vector3(X.map(p[kx]),Y.map(p[ky]),Z.map(p[kz]));mapPt=V;
+  const tick=ax=>(ax.log?logTicks(ax.min,ax.max):niceTicks(ax.min,ax.max,5));
+  const tX=tick(X),tY=tick(Y),tZ=tick(Z);
+
+  // bounding box
+  root.add(new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(SX,SY,SZ)),lineMat(C.ink2,0.45)));
+
+  // back walls: grid + projected cycle (positioned each frame)
+  const gridMat=lineMat(C.line,0.9);
+  walls.z=new THREE.Group();walls.x=new THREE.Group();walls.y=new THREE.Group();
+  let gz=[],gx=[],gy=[];
+  tX.forEach(t=>{const x=X.map(t);gz.push(x,-hy,0,x,hy,0);gy.push(x,0,-hz,x,0,hz);});
+  tY.forEach(t=>{const y=Y.map(t);gz.push(-hx,y,0,hx,y,0);gx.push(0,y,-hz,0,y,hz);});
+  tZ.forEach(t=>{const z=Z.map(t);gx.push(0,-hy,z,0,hy,z);gy.push(-hx,0,z,hx,0,z);});
+  walls.z.add(segs(gz,gridMat));walls.x.add(segs(gx,gridMat));walls.y.add(segs(gy,gridMat));
+  d.procs.forEach(p=>{
+    const m=lineMat(heatCol(p.heat),0.55),vs=p.pts.map(V);
+    walls.z.add(poly(vs.map(v=>new THREE.Vector3(v.x,v.y,0)),m));
+    walls.x.add(poly(vs.map(v=>new THREE.Vector3(0,v.y,v.z)),m));
+    walls.y.add(poly(vs.map(v=>new THREE.Vector3(v.x,0,v.z)),m));
+  });
+  root.add(walls.z,walls.x,walls.y);
+
+  // property surface
+  const n=44,pos=[],ok=[],idx=[];
+  const P1=shared.P1,T1=shared.T1;
+  for(let i=0;i<=n;i++)for(let j=0;j<=n;j++){
+    const xv=X.at(i/n),zv=Z.at(j/n);
+    const yv=mode==="pvt"?R*zv/xv:T1*Math.exp((xv+R*Math.log(zv/P1))/cp);
+    const good=isFinite(yv)&&yv>=Y.min&&yv<=Y.max;
+    ok.push(good);
+    pos.push(X.map(xv),good?Y.map(yv):0,Z.map(zv));
+  }
+  const id=(i,j)=>i*(n+1)+j,iso=[];
+  for(let i=0;i<n;i++)for(let j=0;j<n;j++){
+    const a=id(i,j),b=id(i+1,j),c=id(i,j+1),e=id(i+1,j+1);
+    if(ok[a]&&ok[b]&&ok[c])idx.push(a,b,c);
+    if(ok[b]&&ok[e]&&ok[c])idx.push(b,e,c);
+  }
+  const seg=(a,b)=>{if(ok[a]&&ok[b])iso.push(pos[a*3],pos[a*3+1],pos[a*3+2],pos[b*3],pos[b*3+1],pos[b*3+2]);};
+  for(let i=0;i<=n;i+=4)for(let j=0;j<n;j++)seg(id(i,j),id(i,j+1));
+  for(let j=0;j<=n;j+=4)for(let i=0;i<n;i++)seg(id(i,j),id(i+1,j));
+  const sg=new THREE.BufferGeometry();sg.setAttribute("position",new THREE.Float32BufferAttribute(pos,3));sg.setIndex(idx);
+  root.add(new THREE.Mesh(sg,new THREE.MeshBasicMaterial({color:new THREE.Color(C.surf),transparent:true,opacity:0.14,side:THREE.DoubleSide,depthWrite:false})));
+  root.add(segs(iso,lineMat(C.surf,0.4)));
+
+  // cycle tubes + states
+  procVecs=d.procs.map(p=>p.pts.map(V));
+  d.procs.forEach((p,i)=>{
+    const curve=new THREE.CatmullRomCurve3(procVecs[i],false,"centripetal");
+    root.add(new THREE.Mesh(new THREE.TubeGeometry(curve,96,0.017,8,false),new THREE.MeshLambertMaterial({color:new THREE.Color(heatCol(p.heat))})));
+  });
+  const sMat=new THREE.MeshLambertMaterial({color:new THREE.Color(C.ink)});
+  d.states.forEach((s,i)=>{
+    const v=V(s),m=new THREE.Mesh(new THREE.SphereGeometry(0.038,16,12),sMat);m.position.copy(v);root.add(m);
+    addLabel(String(i+1),"st",()=>v.clone().add(new THREE.Vector3(0,0.13,0)));
+  });
+  tracer=new THREE.Mesh(new THREE.SphereGeometry(0.055,20,14),new THREE.MeshLambertMaterial({color:new THREE.Color(C.ink)}));
+  tracer.visible=traceOn;root.add(tracer);
+
+  // ticks and axis titles (edges chosen per frame from camera side)
+  const W=(a,b,c)=>new THREE.Vector3(a,b,c);
+  tX.forEach(t=>{const x=X.map(t);addLabel(fmtTick(t),"",()=>W(x,-sy*(hy+0.08),sz*(hz+0.05)));});
+  tY.forEach(t=>{const y=Y.map(t);addLabel(fmtTick(t),"",()=>W(-sx*(hx+0.14),y,sz*hz));});
+  tZ.forEach(t=>{const z=Z.map(t);addLabel(fmtTick(t),"",()=>W(sx*(hx+0.14),-sy*hy,z));});
+  const ttl=key=>`${META[key].sym} (${META[key].unit})${(logOn&&key!=="s")?" log":""}`;
+  addLabel(ttl(kx),"axis",()=>W(0,-sy*(hy+0.28),sz*(hz+0.1)));
+  addLabel(ttl(ky),"axis",()=>W(-sx*(hx+0.2),sy*(hy+0.16),sz*hz));
+  addLabel(ttl(kz),"axis",()=>W(sx*(hx+0.42),-sy*hy,0));
+  addLabel(`${ky}–${kx} plane`,"wall",()=>W(0,sy*(hy-0.08),-sz*hz));
+  addLabel(`${ky}–${kz} plane`,"wall",()=>W(-sx*hx,sy*(hy-0.08),0));
+  addLabel(`${kz}–${kx} plane`,"wall",()=>W(0,-sy*hy,-sz*(hz-0.1)));
+
+  // view buttons follow the mode
+  const vb=document.querySelectorAll("#viewSeg button");
+  vb[1].textContent=`${ky}–${kx}`;vb[2].textContent=`${ky}–${kz}`;vb[3].textContent=`${kz}–${kx}`;
+  $("#legend").innerHTML=`<span><i style="background:var(--hot)"></i>${term("Heat added","qin")}</span><span><i style="background:var(--cold)"></i>${term("Heat rejected","qout")}</span><span><i style="background:var(--neutral)"></i>${term("Adiabatic (isentropic)","isen")}</span><span><i style="background:var(--surf);opacity:.6"></i>${term(mode==="pvt"?"Ideal-gas surface Pv = RT, with isotherms and isochores":"Ideal-gas surface, with isentropes and isobars","surface")}</span><span>Faint lines on the walls are the 2D projections</span>`;
+}
+
+/* ---------- camera & interaction ---------- */
+function placeCamera(){
+  camera.position.set(radius*Math.sin(phi)*Math.sin(theta),radius*Math.cos(phi),radius*Math.sin(phi)*Math.cos(theta));
+  camera.lookAt(0,0,0);
+  sx=camera.position.x>=-1e-6?1:-1;sy=camera.position.y>=0?1:-1;sz=camera.position.z>=-1e-6?1:-1;
+  if(walls.z){walls.z.position.z=-sz*SZ/2;walls.x.position.x=-sx*SX/2;walls.y.position.y=-sy*SY/2;}
+}
+function resize(){
+  const w=vp.clientWidth,h=vp.clientHeight;if(!w||!h)return;
+  renderer.setSize(w,h,false);camera.aspect=w/h;camera.fov=camera.aspect<1.15?Math.min(58,30*1.15/camera.aspect):30;camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(vp);
+
+const ptrs=new Map();let pinch=0;
+canvas.addEventListener("pointerdown",e=>{canvas.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});tween=null;if(ptrs.size===2){const[a,b]=[...ptrs.values()];pinch=Math.hypot(a.x-b.x,a.y-b.y);}});
+canvas.addEventListener("pointermove",e=>{
+  if(!ptrs.has(e.pointerId))return;const prev=ptrs.get(e.pointerId);
+  if(ptrs.size===1){theta-=(e.clientX-prev.x)*0.008;phi=Math.min(Math.PI-0.05,Math.max(0.05,phi-(e.clientY-prev.y)*0.008));}
+  ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(ptrs.size===2){const[a,b]=[...ptrs.values()],dd=Math.hypot(a.x-b.x,a.y-b.y);if(pinch>0)radius=Math.min(14,Math.max(3.4,radius*pinch/dd));pinch=dd;}
+});
+const up=e=>{ptrs.delete(e.pointerId);pinch=0;};
+canvas.addEventListener("pointerup",up);canvas.addEventListener("pointercancel",up);
+canvas.addEventListener("wheel",e=>{e.preventDefault();radius=Math.min(14,Math.max(3.4,radius*(1+e.deltaY*0.0012)));},{passive:false});
+
+const VIEWS={iso:[0.75,1.12],front:[0,Math.PI/2],side:[Math.PI/2,Math.PI/2],top:[0,0.06]};
+document.querySelectorAll("#viewSeg button").forEach(b=>b.addEventListener("click",()=>{
+  const[t,p]=VIEWS[b.dataset.view];
+  if(b.dataset.view!=="iso"){autoRot=false;$("#rotT").checked=false;}
+  let dt=((t-theta)%(2*Math.PI)+3*Math.PI)%(2*Math.PI)-Math.PI;
+  if(reduce){theta=t;phi=p;return;}
+  tween={t0:performance.now(),th0:theta,dth:dt,ph0:phi,dph:p-phi,r0:radius,dr:6.6-radius};
+}));
+document.querySelectorAll("#modeSeg button").forEach(b=>b.addEventListener("click",()=>{
+  mode=b.dataset.mode;remember();
+  document.querySelectorAll("#modeSeg button").forEach(x=>x.setAttribute("aria-pressed",x===b));
+  rebuildScene(data);
+}));
+$("#logT").checked=logOn;$("#rotT").checked=autoRot;$("#trT").checked=traceOn;
+document.querySelectorAll("#modeSeg button").forEach(x=>x.setAttribute("aria-pressed",x.dataset.mode===mode));
+$("#logT").addEventListener("change",e=>{logOn=e.target.checked;remember();rebuildScene(data);});
+$("#rotT").addEventListener("change",e=>{autoRot=e.target.checked;});
+$("#trT").addEventListener("change",e=>{traceOn=e.target.checked;if(tracer)tracer.visible=traceOn;$("#chip").hidden=!traceOn;});
+$("#chip").hidden=!traceOn;
+
+const tmp=new THREE.Vector3();
+function frame(now){
+  if(PAGES.explorer.hidden){requestAnimationFrame(frame);return;}
+  if(tween){const t=Math.min(1,(now-tween.t0)/650),e=t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+    theta=tween.th0+tween.dth*e;phi=tween.ph0+tween.dph*e;radius=tween.r0+tween.dr*e;if(t>=1)tween=null;}
+  else if(autoRot&&ptrs.size===0)theta+=0.0022;
+  placeCamera();
+  engineFrame(now);
+  if(tracer){tracer.visible=traceOn&&!!(cur&&cur.st&&mapPt);if(tracer.visible)tracer.position.copy(mapPt(cur.st));}
+  if(cur){const txt=cur.st?cur.name:cur.name+" (state 1, outside the closed cycle)";if($("#chipTxt").textContent!==txt){$("#chipTxt").textContent=txt;$("#chipDot").className="dot "+cur.heat;}}
+  renderer.render(scene,camera);
+  const w=vp.clientWidth,h=vp.clientHeight;
+  for(const L of labels){tmp.copy(L.get()).project(camera);
+    if(tmp.z>1){L.el.hidden=true;continue;}L.el.hidden=false;
+    L.el.style.transform=`translate(${((tmp.x+1)/2*w).toFixed(1)}px,${((1-tmp.y)/2*h).toFixed(1)}px) translate(-50%,-50%)`;}
+  requestAnimationFrame(frame);
+}
+
+/* ---------- Otto engine calculator ---------- */
+const eng={bore:80,stroke:90,cyl:4,rpm:3000,heatMode:"T3"};
+let cO=null;
+function calcOtto(){
+  const r=vals.otto.r,P1=shared.P1,T1=shared.T1,T3=vals.otto.Tmax,B=eng.bore/1000,L=eng.stroke/1000;
+  const Vs=Math.PI/4*B*B*L,Vc=Vs/(r-1),V1=Vs+Vc,m=P1*V1/(R*T1);
+  const T2=T1*Math.pow(r,k-1),P2=P1*Math.pow(r,k),P3=P2*T3/T2,T4=T3/Math.pow(r,k-1),P4=P3/Math.pow(r,k);
+  const qin=cv*(T3-T2),qout=cv*(T4-T1),w=qin-qout,eta=1-1/Math.pow(r,k-1);
+  const v1=R*T1/P1,v2=v1/r,mep=w/(v1-v2);
+  const cps=eng.rpm/120,Wc=m*w,Qc=m*qin,Pow=Wc*eng.cyl*cps,omega=2*Math.PI*eng.rpm/60;
+  return {r,P1,T1,T2,P2,T3,P3,T4,P4,Vs,Vc,V1,m,qin,qout,w,eta,v1,v2,mep,Wc,Qc,Pow,torque:Pow*1000/omega,
+    heatRate:Qc*eng.cyl*cps,mdot:m*eng.cyl*cps,piston:2*L*eng.rpm/60,disp:Vs*eng.cyl,BL:eng.bore/eng.stroke,omega};
+}
+const T2now=()=>shared.T1*Math.pow(vals.otto.r,k-1);
+const FIELDS=[
+  {id:"bore",label:"Bore",unit:"mm",min:20,max:300,get:()=>eng.bore,set:v=>eng.bore=v},
+  {id:"stroke",label:"Stroke",unit:"mm",min:20,max:300,get:()=>eng.stroke,set:v=>eng.stroke=v},
+  {id:"cyl",label:"Cylinders",unit:"",min:1,max:16,int:true,get:()=>eng.cyl,set:v=>eng.cyl=v},
+  {id:"rpm",label:"Engine speed",unit:"rpm",min:100,max:20000,get:()=>eng.rpm,set:v=>eng.rpm=v},
+  {id:"r",label:"Compression ratio r",unit:"",min:2,max:20,get:()=>vals.otto.r,set:v=>vals.otto.r=v},
+  {id:"P1",label:"Intake pressure P₁",unit:"kPa",min:20,max:500,get:()=>shared.P1,set:v=>shared.P1=v},
+  {id:"T1",label:"Intake temperature T₁",unit:"K",min:200,max:500,get:()=>shared.T1,set:v=>shared.T1=v},
+  {id:"heat",wide:true,get:()=>eng.heatMode==="T3"?vals.otto.Tmax:cv*(vals.otto.Tmax-T2now()),
+    set:v=>{vals.otto.Tmax=eng.heatMode==="T3"?v:T2now()+v/cv;},
+    lim:()=>eng.heatMode==="T3"?[300,4500]:[1,5000]}
+];
+function heatLabel(){return eng.heatMode==="T3"?["Peak temperature T₃","K"]:["Heat added q_in","kJ/kg"];}
+function trimNum(v){return String(Number(Number(v).toFixed(Math.abs(v)<10?3:1)));}
+function renderFields(){
+  const [hl,hu]=heatLabel();
+  $("#fields").innerHTML=FIELDS.map(F=>{
+    const lab=F.id==="heat"?hl:F.label,u=F.id==="heat"?hu:F.unit,key=F.id==="heat"?(eng.heatMode==="T3"?"otto.Tmax":"qin"):F.id;
+    return `<div class="nf${F.wide?" wide":""}" id="nf-${F.id}"><label for="cf-${F.id}">${term(lab,key)}</label><div class="box"><input id="cf-${F.id}" inputmode="decimal" value="${trimNum(F.get())}">${u?`<span class="u">${u}</span>`:""}</div></div>`;
+  }).join("")+`<div class="nf wide"><label for="cf-mode">${term("Combustion input","heatMode")}</label><div class="box"><select id="cf-mode">
+    <option value="T3"${eng.heatMode==="T3"?" selected":""}>Specify peak temperature T₃</option>
+    <option value="qin"${eng.heatMode==="qin"?" selected":""}>Specify heat added per kg, q_in</option></select></div></div>`;
+  FIELDS.forEach(F=>{
+    const el=document.getElementById("cf-"+F.id);
+    el.addEventListener("input",()=>{
+      const v=parseFloat(el.value),[mn,mx]=F.lim?F.lim():[F.min,F.max],box=document.getElementById("nf-"+F.id);
+      const ok=isFinite(v)&&v>=mn&&v<=mx&&(!F.int||Number.isInteger(v));
+      box.classList.toggle("bad",!ok);
+      const cw=$("#cwarn");
+      if(!ok){cw.hidden=false;cw.textContent=`${box.querySelector("label").textContent.trim()} must be ${F.int?"a whole number ":""}between ${mn} and ${mx}.`;return;}
+      cw.hidden=true;F.set(v);if(cycle!=="otto"&&!["bore","stroke","cyl","rpm"].includes(F.id)){cycle="otto";eT=0;remember();renderCycles();}renderInputs();update();
+    });
+    el.addEventListener("blur",()=>{if(!document.getElementById("nf-"+F.id).classList.contains("bad"))el.value=trimNum(F.get());});
+  });
+  $("#cf-mode").addEventListener("change",e=>{eng.heatMode=e.target.value;renderFields();});
+}
+function syncFields(){
+  FIELDS.forEach(F=>{const el=document.getElementById("cf-"+F.id);if(el&&el!==document.activeElement&&!document.getElementById("nf-"+F.id).classList.contains("bad"))el.value=trimNum(F.get());});
+}
+function renderCalc(c){
+  const OK={"Swept volume per cylinder":"Vs","Clearance volume":"Vc","Total cylinder volume V₁":"V1","Engine displacement":"disp","Bore / stroke":"BL","Mean piston speed":"piston","T₂ after compression":"T2","P₂ after compression":"P2","T₃ peak temperature":"T3","P₃ peak pressure":"P3","T₄ after expansion":"T4","P₄ after expansion":"P4","Heat added q_in":"qin","Heat rejected q_out":"qout","Net work w_net":"wnet","Thermal efficiency η":"eta","Mean effective pressure":"mep","Air mass per cylinder per cycle":"mair","Heat added per cycle":"Qc","Work per cycle":"Wc","Indicated power":"power","Indicated power (hp)":"hp","Indicated torque":"torque","Heat input rate":"heatRate","Air mass flow":"mdot"};
+  const g=(t,rows)=>`<div class="og"><h3>${t}</h3><dl>${rows.map(([a,b,key])=>`<dt>${term(a,OK[a])}</dt><dd${key?' class="key"':""}>${b}</dd>`).join("")}</dl></div>`;
+  $("#outs").innerHTML=
+    g("Engine geometry",[["Swept volume per cylinder",f(c.Vs*1e6,1)+" cm³"],["Clearance volume",f(c.Vc*1e6,1)+" cm³"],["Total cylinder volume V₁",f(c.V1*1e6,1)+" cm³"],["Engine displacement",f(c.disp*1000,3)+" L",1],["Bore / stroke",c.BL.toFixed(3)],["Mean piston speed",f(c.piston,2)+" m/s"]])+
+    g("Cycle states",[["T₂ after compression",f(c.T2,1)+" K"],["P₂ after compression",f(c.P2/100,2)+" bar"],["T₃ peak temperature",f(c.T3,1)+" K"],["P₃ peak pressure",f(c.P3/100,2)+" bar",1],["T₄ after expansion",f(c.T4,1)+" K"],["P₄ after expansion",f(c.P4/100,2)+" bar"]])+
+    g("Per kg of air",[["Heat added q_in",f(c.qin,1)+" kJ/kg"],["Heat rejected q_out",f(c.qout,1)+" kJ/kg"],["Net work w_net",f(c.w,1)+" kJ/kg"],["Thermal efficiency η",pct(c.eta)+" %",1],["Mean effective pressure",f(c.mep/100,2)+" bar"]])+
+    g("Engine output",[["Air mass per cylinder per cycle",f(c.m*1e6,1)+" mg"],["Heat added per cycle",f(c.Qc*1000,1)+" J"],["Work per cycle",f(c.Wc*1000,1)+" J"],["Indicated power",f(c.Pow,1)+" kW",1],["Indicated power (hp)",f(c.Pow*1.341,1)+" hp"],["Indicated torque",f(c.torque,1)+" N·m",1],["Heat input rate",f(c.heatRate,1)+" kW"],["Air mass flow",f(c.mdot*1000,2)+" g/s"]]);
+  const r=c.r,m=s=>`<span class="m">${s}</span>`,res=s=>`<span class="res">${s}</span>`;
+  $("#steps").innerHTML=[
+    `Swept volume ${m(`V<sub>s</sub> = (π/4)B²L = (π/4)(${(eng.bore/1000).toFixed(3)})²(${(eng.stroke/1000).toFixed(3)})`)} = ${res(f(c.Vs*1e6,1)+" cm³")}`,
+    `Clearance volume ${m(`V<sub>c</sub> = V<sub>s</sub>/(r − 1) = ${f(c.Vs*1e6,1)}/(${trimNum(r)} − 1)`)} = ${res(f(c.Vc*1e6,1)+" cm³")}, so ${m(`V₁ = V<sub>s</sub> + V<sub>c</sub>`)} = ${res(f(c.V1*1e6,1)+" cm³")}`,
+    `Air mass per cycle ${m(`m = P₁V₁/(RT₁) = ${trimNum(c.P1)} × ${c.V1.toExponential(3)} / (0.287 × ${trimNum(c.T1)})`)} = ${res(f(c.m*1e6,1)+" mg")}`,
+    `Isentropic compression 1→2: ${m(`T₂ = T₁r<sup>γ−1</sup> = ${trimNum(c.T1)} × ${trimNum(r)}<sup>0.4</sup>`)} = ${res(f(c.T2,1)+" K")}, ${m(`P₂ = P₁r<sup>γ</sup> = ${trimNum(c.P1)} × ${trimNum(r)}<sup>1.4</sup>`)} = ${res(f(c.P2,1)+" kPa")}`,
+    eng.heatMode==="T3"
+      ?`Constant-volume heat addition 2→3: ${m(`P₃ = P₂(T₃/T₂) = ${f(c.P2,1)} × ${f(c.T3,1)}/${f(c.T2,1)}`)} = ${res(f(c.P3,1)+" kPa")}`
+      :`Constant-volume heat addition 2→3: ${m(`T₃ = T₂ + q<sub>in</sub>/c<sub>v</sub> = ${f(c.T2,1)} + ${f(c.qin,1)}/0.718`)} = ${res(f(c.T3,1)+" K")}, ${m(`P₃ = P₂(T₃/T₂)`)} = ${res(f(c.P3,1)+" kPa")}`,
+    `Isentropic expansion 3→4: ${m(`T₄ = T₃/r<sup>γ−1</sup> = ${f(c.T3,1)}/${trimNum(r)}<sup>0.4</sup>`)} = ${res(f(c.T4,1)+" K")}, ${m(`P₄ = P₃/r<sup>γ</sup>`)} = ${res(f(c.P4,1)+" kPa")}`,
+    `Heat transfer: ${m(`q<sub>in</sub> = c<sub>v</sub>(T₃ − T₂) = 0.718(${f(c.T3,1)} − ${f(c.T2,1)})`)} = ${res(f(c.qin,1)+" kJ/kg")}; ${m(`q<sub>out</sub> = c<sub>v</sub>(T₄ − T₁) = 0.718(${f(c.T4,1)} − ${trimNum(c.T1)})`)} = ${res(f(c.qout,1)+" kJ/kg")}`,
+    `Net work and efficiency: ${m(`w<sub>net</sub> = q<sub>in</sub> − q<sub>out</sub>`)} = ${res(f(c.w,1)+" kJ/kg")}; ${m(`η = w<sub>net</sub>/q<sub>in</sub> = 1 − 1/r<sup>γ−1</sup>`)} = ${res(pct(c.eta)+" %")}`,
+    `Mean effective pressure ${m(`MEP = w<sub>net</sub>/(v₁ − v₂) = ${f(c.w,1)}/(${c.v1.toFixed(4)} − ${c.v2.toFixed(4)})`)} = ${res(f(c.mep,1)+" kPa")}`,
+    `Work per cycle ${m(`W = m·w<sub>net</sub>`)} = ${res(f(c.Wc*1000,1)+" J")}. Indicated power for a four-stroke engine ${m(`P = W × n<sub>cyl</sub> × N/120 = ${f(c.Wc*1000,1)} × ${eng.cyl} × ${f(eng.rpm,0)}/120`)} = ${res(f(c.Pow,2)+" kW")}`,
+    `Indicated torque ${m(`τ = P/ω = ${f(c.Pow*1000,0)} / (2π × ${f(eng.rpm,0)}/60)`)} = ${res(f(c.torque,1)+" N·m")}`
+  ].map(s=>`<li>${s}</li>`).join("");
+  const cw=$("#cwarn");
+  if(c.T3<=c.T2&&!document.querySelector(".nf.bad")){cw.hidden=false;cw.textContent=`Peak temperature must be above the end-of-compression temperature T₂ = ${Math.round(c.T2)} K, or the engine produces no work.`;}
+  else if(!document.querySelector(".nf.bad"))cw.hidden=true;
+}
+
+/* ---------- glossary: definitions and uses ---------- */
+const GLOSS={
+  "cycle.otto":{t:"Otto cycle",d:"Ideal air-standard model of a spark-ignition engine: isentropic compression, constant-volume heat addition, isentropic expansion and constant-volume heat rejection.",u:"Estimating the best-case efficiency of petrol engines in cars, motorcycles and small generators, and studying how compression ratio affects performance.",f:"η = 1 − 1/r<sup>γ−1</sup>"},
+  "cycle.diesel":{t:"Diesel cycle",d:"Ideal model of a compression-ignition engine. Heat is added at constant pressure while the piston moves down, then the gas expands isentropically.",u:"Analysing trucks, buses, ships, tractors and diesel generators. It explains why diesels need high compression ratios and why a longer cut-off lowers efficiency.",f:"η = 1 − (r<sub>c</sub><sup>γ</sup> − 1)/[γ r<sup>γ−1</sup>(r<sub>c</sub> − 1)]"},
+  "cycle.dual":{t:"Dual cycle",d:"Also called the mixed or Sabathé cycle. Heat is added partly at constant volume and partly at constant pressure.",u:"A closer model of real high-speed diesel engines, where some fuel burns almost instantly at top dead centre and the rest burns during expansion."},
+  "cycle.brayton":{t:"Brayton cycle",d:"Ideal model of a gas turbine: isentropic compression, constant-pressure heat addition, isentropic expansion and constant-pressure heat rejection.",u:"Designing jet engines, gas-turbine power plants and the gas side of combined-cycle plants.",f:"η = 1 − 1/r<sub>p</sub><sup>(γ−1)/γ</sup>"},
+  "cycle.carnot":{t:"Carnot cycle",d:"A reversible cycle of two isothermal and two isentropic processes. No engine working between the same two temperatures can be more efficient.",u:"The theoretical upper limit used to judge every real engine, refrigerator and heat pump.",f:"η = 1 − T<sub>L</sub>/T<sub>H</sub>"},
+  "mach.otto":{t:"Four-stroke petrol engine",d:"A reciprocating engine that draws in an air–fuel mixture, compresses it and ignites it with a spark. Each cycle takes four strokes and two crank revolutions.",u:"Cars, motorcycles, small aircraft, lawn mowers and portable generators."},
+  "mach.diesel":{t:"Four-stroke diesel engine",d:"A reciprocating engine that compresses only air until it is hot enough to ignite fuel injected directly into the cylinder. No spark plug is needed.",u:"Trucks, buses, locomotives, ships, construction machinery and standby generators, where high efficiency and torque matter."},
+  "mach.dual":{t:"Dual-combustion diesel engine",d:"A diesel engine viewed through the dual cycle: early fuel burns at constant volume near top dead centre and later fuel burns at constant pressure.",u:"Modelling modern high-speed diesel engines more accurately than the pure Diesel cycle."},
+  "mach.brayton":{t:"Gas turbine",d:"A rotating engine with a compressor, a combustion chamber and a turbine on one shaft. Air flows through continuously instead of in separate strokes.",u:"Aircraft jet engines, power-station turbines, ship propulsion and gas pipeline compressors."},
+  "mach.carnot":{t:"Carnot piston–cylinder",d:"An idealised gas in a cylinder that alternately touches a hot reservoir, is insulated, touches a cold reservoir and is insulated again, with every step reversible.",u:"A thought experiment for the second law of thermodynamics; it sets the efficiency limit for any heat engine."},
+  "P1":{t:"Intake pressure P₁",d:"Pressure of the working fluid at state 1, the start of compression.",u:"Sets the mass of air in the cylinder and scales every cycle pressure. Turbochargers and superchargers raise it to get more power from the same engine."},
+  "T1":{t:"Intake temperature T₁",d:"Temperature of the working fluid at state 1, the start of compression. In the Carnot cycle it is the sink temperature T_L.",u:"A cooler intake, for example through an intercooler, packs more air into the cylinder and lowers compression temperatures, which helps avoid knock."},
+  "r":{t:"Compression ratio r",d:"Ratio of the largest to the smallest cylinder volume.",u:"The main driver of Otto and Diesel efficiency. Petrol engines use about 8–12, limited by knock. Diesels use about 14–22 so the air gets hot enough to ignite fuel.",f:"r = V₁/V₂ = (V<sub>s</sub> + V<sub>c</sub>)/V<sub>c</sub>"},
+  "otto.Tmax":{t:"Peak temperature T₃",d:"Highest gas temperature in the cycle, reached at the end of combustion.",u:"Sets how much heat is added, and so the work and the peak pressure. Limited in practice by material strength and NOx formation."},
+  "qin":{t:"Heat added q_in",d:"Heat supplied to each kg of working fluid during combustion or from the hot source.",u:"Fixes the energy input. Efficiency and net work are both measured against it. In the calculator you can enter it instead of T₃.",f:"Otto: q<sub>in</sub> = c<sub>v</sub>(T₃ − T₂)"},
+  "rc":{t:"Cut-off ratio r_c",d:"Ratio of the volume at the end of constant-pressure heat addition to the volume at its start.",u:"Describes how long fuel injection lasts in a diesel. A larger cut-off ratio gives more work per cycle but lower efficiency.",f:"r<sub>c</sub> = V₃/V₂"},
+  "dual.rc":{t:"Cut-off ratio r_c",d:"Ratio of the volume at the end of constant-pressure heat addition to the volume at its start.",u:"Describes the constant-pressure part of combustion in the dual cycle. Larger values add work but lower efficiency.",f:"r<sub>c</sub> = V₄/V₃"},
+  "dual.rp":{t:"Pressure ratio r_p",d:"Ratio of pressure after the constant-volume part of combustion to the pressure at the end of compression. Also called the explosion ratio.",u:"Controls how much heat is released instantly at top dead centre. Higher values move the cycle toward Otto behaviour and raise the peak pressure the engine must withstand.",f:"r<sub>p</sub> = P₃/P₂"},
+  "brayton.rp":{t:"Pressure ratio r_p",d:"Ratio of compressor exit pressure to compressor inlet pressure.",u:"The main design parameter of a gas turbine. It sets the ideal efficiency, the number of compressor stages and the compressor exit temperature.",f:"r<sub>p</sub> = P₂/P₁"},
+  "brayton.Tmax":{t:"Turbine inlet temperature T₃",d:"Gas temperature entering the turbine after the combustor, the highest temperature in the cycle.",u:"Limited by turbine blade materials and cooling. Raising it increases work per kg of air and is a major focus of jet engine development."},
+  "TH":{t:"Source temperature T_H",d:"Temperature of the hot reservoir from which the Carnot engine takes heat.",u:"Together with the sink temperature T_L it alone fixes the Carnot efficiency.",f:"η = 1 − T<sub>L</sub>/T<sub>H</sub>"},
+  "e":{t:"Isothermal volume ratio",d:"Ratio of the volumes at the end and start of each isothermal process in the Carnot cycle. The heat-in and heat-out processes share the same ratio.",u:"Sets how much heat is taken in and rejected per cycle, and so the work per cycle. It does not change the Carnot efficiency, which depends only on the two temperatures.",f:"V₄/V₃ = V₁/V₂, q<sub>in</sub> = RT<sub>H</sub> ln(V₄/V₃)"},
+  "isen":{t:"Isentropic process",d:"A reversible process with no heat transfer, so entropy stays constant. For an ideal gas Pv<sup>γ</sup> stays constant.",u:"Modelling fast compression and expansion in engines, compressors, turbines and nozzles, where there is no time for heat to escape.",f:"Pv<sup>γ</sup> = const, Tv<sup>γ−1</sup> = const"},
+  "isoV":{t:"Isochoric (constant-volume) process",d:"A process at fixed volume. No boundary work is done, so all the heat changes the gas's internal energy.",u:"Modelling fast spark-ignited combustion at top dead centre and exhaust blowdown at bottom dead centre.",f:"q = c<sub>v</sub>ΔT, w = 0"},
+  "isoP":{t:"Isobaric (constant-pressure) process",d:"A process at fixed pressure, so volume changes in proportion to temperature.",u:"Modelling combustion in gas-turbine combustors and in diesel engines during injection, and heat rejection in the Brayton cycle.",f:"q = c<sub>p</sub>ΔT, w = PΔv"},
+  "isoT":{t:"Isothermal process",d:"A process at constant temperature. For an ideal gas the internal energy does not change, so heat in equals work out.",u:"Slow heat exchange with a reservoir in the Carnot cycle. It is also the ideal limit for intercooled compression.",f:"q = w = RT ln(v₂/v₁)"},
+  "Isentropic compression":{t:"Isentropic compression",d:"The gas is compressed with no heat transfer, so its pressure and temperature both rise.",u:"The compression stroke of piston engines and the compressor of a gas turbine. This step absorbs work.",f:"T₂/T₁ = (v₁/v₂)<sup>γ−1</sup>"},
+  "Isentropic expansion":{t:"Isentropic expansion",d:"The gas expands with no heat transfer, so its pressure and temperature fall.",u:"The power stroke of piston engines and the turbine of a gas turbine. This step produces the cycle's work.",f:"T₄/T₃ = (v₃/v₄)<sup>γ−1</sup>"},
+  "Constant-volume heat addition":{t:"Constant-volume heat addition",d:"Heat is added while the volume stays fixed, so pressure and temperature jump together.",u:"The ideal model of spark-ignited combustion in petrol engines and of the first stage of combustion in the dual cycle.",f:"q = c<sub>v</sub>(T₃ − T₂)"},
+  "Constant-volume heat rejection":{t:"Constant-volume heat rejection",d:"Heat leaves while the volume stays fixed, so pressure and temperature fall together.",u:"The ideal model of the exhaust valve opening at bottom dead centre in the Otto, Diesel and Dual cycles.",f:"q = c<sub>v</sub>(T₁ − T₄)"},
+  "Constant-pressure heat addition":{t:"Constant-pressure heat addition",d:"Heat is added while the pressure stays fixed, so the gas expands as it heats up.",u:"Combustion in diesel engines during injection and in gas-turbine combustion chambers.",f:"q = c<sub>p</sub>(T₃ − T₂)"},
+  "Constant-pressure heat rejection":{t:"Constant-pressure heat rejection",d:"Heat leaves while the pressure stays fixed, so the gas contracts as it cools.",u:"Closing the Brayton cycle. It stands for hot exhaust cooling to ambient, or a cooler in closed-cycle gas turbines.",f:"q = c<sub>p</sub>(T₁ − T₄)"},
+  "Isothermal expansion, heat in":{t:"Isothermal expansion (heat in)",d:"The gas expands slowly while touching the hot reservoir. Its temperature stays at T_H and the heat taken in equals the work done.",u:"The heat-addition step of the Carnot cycle.",f:"q<sub>in</sub> = RT<sub>H</sub> ln(v₄/v₃)"},
+  "Isothermal compression, heat out":{t:"Isothermal compression (heat out)",d:"The gas is compressed slowly while touching the cold reservoir. Its temperature stays at T_L and the heat rejected equals the work put in.",u:"The heat-rejection step of the Carnot cycle.",f:"q<sub>out</sub> = RT<sub>L</sub> ln(v₁/v₂)"},
+  "Intake stroke":{t:"Intake stroke",d:"The piston moves from top to bottom dead centre with the intake valve open, drawing in fresh charge.",u:"Filling the cylinder. It is a pumping stroke and is not part of the closed air-standard cycle."},
+  "Exhaust stroke":{t:"Exhaust stroke",d:"The piston moves from bottom to top dead centre with the exhaust valve open, pushing out burnt gas.",u:"Emptying the cylinder for the next cycle. Like the intake stroke, it is outside the closed air-standard cycle."},
+  "eta":{t:"Thermal efficiency η",d:"Fraction of the heat added that becomes net work.",u:"The main measure of how well an engine converts fuel energy into work. It sets fuel consumption.",f:"η = w<sub>net</sub>/q<sub>in</sub>"},
+  "wnet":{t:"Net work w_net",d:"Expansion work minus compression work per kg of air over one cycle. It equals heat added minus heat rejected.",u:"Shows the useful work each kg of air produces per cycle. Multiplied by the air mass flow it gives power.",f:"w<sub>net</sub> = q<sub>in</sub> − q<sub>out</sub>"},
+  "qout":{t:"Heat rejected q_out",d:"Heat leaving the working fluid per kg, mostly with the exhaust.",u:"An unavoidable loss required by the second law. Turbochargers, waste-heat boilers and combined cycles try to recover part of it.",f:"Otto: q<sub>out</sub> = c<sub>v</sub>(T₄ − T₁)"},
+  "mep":{t:"Mean effective pressure",d:"The constant pressure that, acting over the full stroke, would give the same net work as the real cycle.",u:"Comparing engines of different sizes. A higher MEP means more work from the same displacement.",f:"MEP = w<sub>net</sub>/(v<sub>max</sub> − v<sub>min</sub>)"},
+  "carnotlim":{t:"Carnot limit",d:"Efficiency of a Carnot engine working between the cycle's lowest and highest temperatures.",u:"An upper bound that shows how far a cycle is from the best possible use of its temperature range.",f:"η<sub>C</sub> = 1 − T<sub>min</sub>/T<sub>max</sub>"},
+  "P":{t:"Pressure P",d:"Force per unit area exerted by the gas, in kPa (1 bar = 100 kPa).",u:"Sets the force on the piston or blades. The peak pressure decides how strong the engine structure must be."},
+  "v":{t:"Specific volume v",d:"Volume occupied by each kg of gas, in m³/kg. It is the inverse of density.",u:"Used instead of real volume so results do not depend on engine size. The real volume is V = m·v.",f:"v = RT/P"},
+  "T":{t:"Temperature T",d:"Absolute gas temperature in kelvin.",u:"Sets internal energy and heat transfer, and limits which materials can be used."},
+  "s":{t:"Specific entropy s",d:"A property that measures how energy is spread out, per kg of gas. Here it is taken as zero at state 1.",u:"On a T–s diagram the area under a process equals the heat transferred, and isentropic processes appear as vertical lines.",f:"Δs = c<sub>p</sub> ln(T₂/T₁) − R ln(P₂/P₁)"},
+  "q":{t:"Heat transfer q",d:"Heat crossing the system boundary per kg during a process. Positive means heat goes into the gas.",u:"Shows which processes add heat and which reject it."},
+  "w":{t:"Boundary work w",d:"Work done by the gas per kg during a process. It is positive when the gas expands and negative when it is compressed.",u:"Adding it over all processes gives the net work of the cycle.",f:"w = q − c<sub>v</sub>(T<sub>end</sub> − T<sub>start</sub>)"},
+  "crank":{t:"Crank angle",d:"Angle turned by the crankshaft, measured from top dead centre. A four-stroke cycle takes 720°.",u:"The standard way to time valve opening, spark and fuel injection in an engine."},
+  "Vreal":{t:"Cylinder volume",d:"Gas volume above the piston at this instant. It moves between the clearance volume and the total cylinder volume.",u:"Plotting pressure against it gives the indicator diagram, whose enclosed area is the work per cycle."},
+  "section":{t:"Gas-turbine section",d:"The part of the engine the highlighted gas is passing through: compressor, combustor, turbine or exhaust.",u:"Each section carries out one process of the Brayton cycle, so the cycle is spread out in space instead of in time."},
+  "surface":{t:"Ideal-gas surface",d:"Every combination of P, v and T that satisfies Pv = RT. Every equilibrium state of air in this model lies on it.",u:"Shows the cycle as a path on a 3D property surface. The P–v, T–v and P–T diagrams are its shadows on the walls."},
+  "bore":{t:"Bore B",d:"Inside diameter of the cylinder.",u:"With the stroke it sets the swept volume. A larger bore leaves room for bigger valves, which helps engines breathe at high speed."},
+  "stroke":{t:"Stroke L",d:"Distance the piston travels between top and bottom dead centre. It equals twice the crank radius.",u:"With the bore it sets the swept volume. Long-stroke engines tend to give more low-speed torque; short-stroke engines rev higher."},
+  "cyl":{t:"Number of cylinders",d:"How many identical cylinders the engine has.",u:"Multiplies displacement and power. More cylinders give smoother running and more frequent power strokes."},
+  "rpm":{t:"Engine speed N",d:"Crankshaft rotational speed in revolutions per minute.",u:"Converts work per cycle into power. A four-stroke cylinder fires once every two revolutions, so it completes N/120 cycles per second."},
+  "heatMode":{t:"Combustion input",d:"Choose how the heat release is specified: by the peak temperature T₃ or by the heat added per kg, q_in.",u:"Textbook problems give either one. The other is worked out from q_in = c_v(T₃ − T₂)."},
+  "Vs":{t:"Swept volume V_s",d:"Volume the piston sweeps in one stroke, for one cylinder.",u:"The basic size of a cylinder. Engine capacity in cc is the swept volume times the number of cylinders.",f:"V<sub>s</sub> = (π/4)B²L"},
+  "Vc":{t:"Clearance volume V_c",d:"Volume left above the piston at top dead centre.",u:"Together with the swept volume it sets the compression ratio, and it is where combustion starts.",f:"V<sub>c</sub> = V<sub>s</sub>/(r − 1)"},
+  "V1":{t:"Total cylinder volume V₁",d:"Gas volume when the piston is at bottom dead centre: swept volume plus clearance volume.",u:"Used with P₁ and T₁ to find the mass of air trapped each cycle.",f:"V₁ = V<sub>s</sub> + V<sub>c</sub>"},
+  "disp":{t:"Engine displacement",d:"Total swept volume of all cylinders, usually quoted in litres or cc.",u:"The common way engines are sized and taxed, for example a 1.2 L or 1500 cc engine.",f:"V<sub>d</sub> = n<sub>cyl</sub> V<sub>s</sub>"},
+  "BL":{t:"Bore-to-stroke ratio",d:"Bore divided by stroke. Above 1 is called oversquare, below 1 undersquare.",u:"Oversquare engines suit high speeds; undersquare engines favour torque and lower heat loss."},
+  "piston":{t:"Mean piston speed",d:"Average speed of the piston over a revolution.",u:"A limit on engine speed set by friction and inertia loads. Car engines usually stay below about 20 m/s.",f:"ū<sub>p</sub> = 2LN/60"},
+  "mair":{t:"Air mass per cylinder per cycle",d:"Mass of air trapped in one cylinder at the start of compression.",u:"Converts per-kg results into real energy per cycle, and with the air–fuel ratio sets how much fuel can be burned.",f:"m = P₁V₁/(RT₁)"},
+  "Qc":{t:"Heat added per cycle",d:"Heat released in one cylinder during one cycle.",u:"Relates the cycle to fuel energy. Dividing by the fuel's heating value gives the fuel mass needed per cycle.",f:"Q = m q<sub>in</sub>"},
+  "Wc":{t:"Work per cycle",d:"Net work done by the gas in one cylinder over one cycle. It equals the area inside the P–V diagram.",u:"Multiplied by the cycle rate and the number of cylinders it gives indicated power.",f:"W = m w<sub>net</sub> = MEP × V<sub>s</sub>"},
+  "power":{t:"Indicated power",d:"Power developed by the gas on the pistons, before friction and accessory losses are taken off.",u:"The starting point for engine rating. Brake (shaft) power is indicated power times mechanical efficiency.",f:"P = W n<sub>cyl</sub> N/120 (four-stroke)"},
+  "hp":{t:"Horsepower",d:"Indicated power in horsepower, where 1 kW ≈ 1.341 hp.",u:"Common unit for vehicle engine ratings."},
+  "torque":{t:"Indicated torque",d:"Turning moment that the indicated power produces at the crankshaft at this speed.",u:"Governs acceleration and pulling ability. For a fixed MEP, torque depends only on displacement.",f:"τ = P/ω, ω = 2πN/60"},
+  "heatRate":{t:"Heat input rate",d:"Rate at which fuel energy is released in all cylinders.",u:"Used to size fuel flow. Dividing by the fuel's heating value gives fuel consumption in kg/s.",f:"Q̇ = m q<sub>in</sub> n<sub>cyl</sub> N/120"},
+  "mdot":{t:"Air mass flow",d:"Mass of air passing through the engine per second.",u:"Sizing intake systems, air filters, turbochargers and sensors such as the mass-airflow sensor.",f:"ṁ = m n<sub>cyl</sub> N/120"},
+  "T2":{t:"T₂ after compression",d:"Gas temperature at the end of isentropic compression.",u:"Checking for knock in petrol engines, and confirming that diesel air gets hot enough to self-ignite fuel.",f:"T₂ = T₁r<sup>γ−1</sup>"},
+  "P2":{t:"P₂ after compression",d:"Gas pressure at the end of isentropic compression.",u:"Sets the starting point for combustion and the compression load on the piston.",f:"P₂ = P₁r<sup>γ</sup>"},
+  "T3":{t:"T₃ peak temperature",d:"Highest gas temperature in the cycle, at the end of heat addition.",u:"Sets material limits and NOx emissions."},
+  "P3":{t:"P₃ peak pressure",d:"Highest pressure in the cycle, at the end of constant-volume combustion.",u:"Sizing the cylinder head, gasket, piston, connecting rod and bearings.",f:"P₃ = P₂T₃/T₂"},
+  "T4":{t:"T₄ after expansion",d:"Gas temperature at the end of the power stroke, just before the exhaust valve opens.",u:"Indicates exhaust temperature and how much energy is left for a turbocharger.",f:"T₄ = T₃/r<sup>γ−1</sup>"},
+  "P4":{t:"P₄ after expansion",d:"Gas pressure at the end of the power stroke.",u:"Indicates the blowdown pressure when the exhaust valve opens.",f:"P₄ = P₃/r<sup>γ</sup>"},
+  "pvt":{t:"P–v–T view",d:"The cycle plotted in pressure, specific volume and temperature, drawn on the ideal-gas surface.",u:"Shows how the familiar P–v diagram and the temperature changes fit together."},
+  "ts":{t:"T–s–P view",d:"The cycle plotted in temperature, entropy and pressure.",u:"Makes heat transfer easy to read: isentropic steps are vertical and the area under a curve is heat."}
+};
+const TERMKEY_PROC=n=>GLOSS[n]?n:null;
+function term(text,key){return GLOSS[key]?`<span class="term" data-term="${key}" tabindex="0">${text}</span>`:text;}
+
+/* ---------- tooltip ---------- */
+const tip=document.createElement("div");tip.className="tip";tip.id="tip";tip.setAttribute("role","tooltip");tip.hidden=true;document.body.appendChild(tip);
+let tipFor=null;
+function showTip(el){
+  const g=GLOSS[el.dataset.term];if(!g)return;
+  tipFor=el;el.setAttribute("aria-describedby","tip");
+  tip.innerHTML=`<b>${g.t}</b><p>${g.d}</p>${g.f?`<div class="tf">${g.f}</div>`:""}<p class="tu"><span>Used for</span>${g.u}</p>`;
+  tip.hidden=false;placeTip();requestAnimationFrame(placeTip);
+}
+function placeTip(){
+  if(!tipFor)return;
+  const r=tipFor.getBoundingClientRect(),tw=tip.offsetWidth,th=tip.offsetHeight,W=document.documentElement.clientWidth,H=window.innerHeight;
+  let x=r.left+r.width/2-tw/2;x=Math.max(12,Math.min(x,W-tw-12));
+  let y=r.bottom+8;if(y+th>H-8)y=r.top-th-8>8?r.top-th-8:Math.max(8,H-th-8);
+  tip.style.left=x+"px";tip.style.top=y+"px";
+}
+function hideTip(){tip.hidden=true;if(tipFor)tipFor.removeAttribute("aria-describedby");tipFor=null;}
+document.addEventListener("pointerover",e=>{if(e.pointerType==="touch")return;const t=e.target.closest&&e.target.closest(".term");
+  if(t){if(t!==tipFor)showTip(t);}else if(tipFor&&!e.target.closest(".tip"))hideTip();});
+document.addEventListener("pointerdown",e=>{if(e.pointerType==="mouse")return;const t=e.target.closest&&e.target.closest(".term");
+  if(t){if(t===tipFor)hideTip();else showTip(t);}else if(!e.target.closest(".tip"))hideTip();});
+document.addEventListener("focusin",e=>{const t=e.target.closest&&e.target.closest(".term");if(t)showTip(t);});
+document.addEventListener("focusout",e=>{if(e.target===tipFor)hideTip();});
+document.addEventListener("keydown",e=>{if(e.key==="Escape")hideTip();});
+window.addEventListener("scroll",()=>{if(tipFor)placeTip();},{passive:true,capture:true});
+
+/* ---------- formula sheet ---------- */
+const FG=[
+  {id:"gas",t:"Gas properties and general relations",n:"Cold-air standard: air is an ideal gas with constant specific heats.",items:[
+    ["Gas constant of air","R = 0.287 kJ/kg·K","Links P, v and T for air.","v"],
+    ["Specific heats","c<sub>p</sub> = 1.005, c<sub>v</sub> = 0.718 kJ/kg·K","Heat needed to raise 1 kg by 1 K at constant pressure or constant volume.",null],
+    ["Specific heat relations","c<sub>p</sub> − c<sub>v</sub> = R,  γ = c<sub>p</sub>/c<sub>v</sub> = 1.4","Connect the two specific heats; γ appears in every isentropic relation.",null],
+    ["Ideal gas law","Pv = RT,  PV = mRT","State equation for any point of the cycle.","surface"],
+    ["First law, closed system","q − w = Δu = c<sub>v</sub>(T<sub>2</sub> − T<sub>1</sub>)","Energy balance for every process; used to find boundary work.","w"],
+    ["Enthalpy change","Δh = c<sub>p</sub>(T<sub>2</sub> − T<sub>1</sub>)","Energy balance for steady-flow devices such as compressors and turbines.",null],
+    ["Entropy change","Δs = c<sub>p</sub> ln(T<sub>2</sub>/T<sub>1</sub>) − R ln(P<sub>2</sub>/P<sub>1</sub>)","Used for the T–s view and to check that isentropic steps have Δs = 0.","s"]]},
+  {id:"proc",t:"Process relations",n:"Per kg of air, from state 1 to state 2 of the process.",items:[
+    ["Isentropic: property relations","Pv<sup>γ</sup> = const,  T<sub>2</sub>/T<sub>1</sub> = (v<sub>1</sub>/v<sub>2</sub>)<sup>γ−1</sup> = (P<sub>2</sub>/P<sub>1</sub>)<sup>(γ−1)/γ</sup>","Compression and expansion strokes, compressors and turbines.","isen"],
+    ["Isentropic: energy","q = 0,  w = c<sub>v</sub>(T<sub>1</sub> − T<sub>2</sub>) = (P<sub>1</sub>v<sub>1</sub> − P<sub>2</sub>v<sub>2</sub>)/(γ − 1)","Work absorbed in compression or produced in expansion.","isen"],
+    ["Isochoric","P<sub>2</sub>/P<sub>1</sub> = T<sub>2</sub>/T<sub>1</sub>,  q = c<sub>v</sub>(T<sub>2</sub> − T<sub>1</sub>),  w = 0","Spark-ignited combustion and exhaust blowdown.","isoV"],
+    ["Isobaric","v<sub>2</sub>/v<sub>1</sub> = T<sub>2</sub>/T<sub>1</sub>,  q = c<sub>p</sub>(T<sub>2</sub> − T<sub>1</sub>),  w = P(v<sub>2</sub> − v<sub>1</sub>) = R(T<sub>2</sub> − T<sub>1</sub>)","Diesel injection and gas-turbine combustion.","isoP"],
+    ["Isothermal","P<sub>1</sub>v<sub>1</sub> = P<sub>2</sub>v<sub>2</sub>,  q = w = RT ln(v<sub>2</sub>/v<sub>1</sub>) = RT ln(P<sub>1</sub>/P<sub>2</sub>)","Heat exchange with reservoirs in the Carnot cycle.","isoT"]]},
+  {id:"otto",t:"Otto cycle",n:"1→2 isentropic compression, 2→3 constant-volume heat addition, 3→4 isentropic expansion, 4→1 constant-volume heat rejection.",items:[
+    ["Compression","T<sub>2</sub> = T<sub>1</sub>r<sup>γ−1</sup>,  P<sub>2</sub> = P<sub>1</sub>r<sup>γ</sup>","End of the compression stroke.","T2"],
+    ["Combustion","P<sub>3</sub> = P<sub>2</sub>(T<sub>3</sub>/T<sub>2</sub>),  T<sub>3</sub> = T<sub>2</sub> + q<sub>in</sub>/c<sub>v</sub>","Peak pressure and temperature.","P3"],
+    ["Expansion","T<sub>4</sub> = T<sub>3</sub>/r<sup>γ−1</sup>,  P<sub>4</sub> = P<sub>3</sub>/r<sup>γ</sup>","End of the power stroke.","T4"],
+    ["Heat","q<sub>in</sub> = c<sub>v</sub>(T<sub>3</sub> − T<sub>2</sub>),  q<sub>out</sub> = c<sub>v</sub>(T<sub>4</sub> − T<sub>1</sub>)","Heat added at TDC and rejected at BDC.","qin"],
+    ["Efficiency","η = 1 − 1/r<sup>γ−1</sup>","Depends only on compression ratio.","cycle.otto"]]},
+  {id:"diesel",t:"Diesel cycle",n:"1→2 isentropic compression, 2→3 constant-pressure heat addition, 3→4 isentropic expansion, 4→1 constant-volume heat rejection.",items:[
+    ["Compression","T<sub>2</sub> = T<sub>1</sub>r<sup>γ−1</sup>,  P<sub>2</sub> = P<sub>1</sub>r<sup>γ</sup>","Air only, compressed to self-ignition temperature.","T2"],
+    ["Cut-off","r<sub>c</sub> = v<sub>3</sub>/v<sub>2</sub>,  T<sub>3</sub> = T<sub>2</sub>r<sub>c</sub>,  P<sub>3</sub> = P<sub>2</sub>","End of fuel injection.","rc"],
+    ["Expansion","T<sub>4</sub> = T<sub>3</sub>(r<sub>c</sub>/r)<sup>γ−1</sup> = T<sub>1</sub>r<sub>c</sub><sup>γ</sup>","End of the power stroke.",null],
+    ["Heat","q<sub>in</sub> = c<sub>p</sub>(T<sub>3</sub> − T<sub>2</sub>),  q<sub>out</sub> = c<sub>v</sub>(T<sub>4</sub> − T<sub>1</sub>)","Note c<sub>p</sub> for heat in, c<sub>v</sub> for heat out.","qin"],
+    ["Efficiency","η = 1 − (r<sub>c</sub><sup>γ</sup> − 1)/[γ r<sup>γ−1</sup>(r<sub>c</sub> − 1)]","Lower than Otto at the same r; falls as cut-off grows.","cycle.diesel"]]},
+  {id:"dual",t:"Dual cycle",n:"1→2 isentropic compression, 2→3 constant-volume and 3→4 constant-pressure heat addition, 4→5 isentropic expansion, 5→1 constant-volume heat rejection.",items:[
+    ["Combustion","T<sub>3</sub> = T<sub>2</sub>r<sub>p</sub>,  P<sub>3</sub> = r<sub>p</sub>P<sub>2</sub>,  T<sub>4</sub> = T<sub>3</sub>r<sub>c</sub>","Two-stage heat release.","dual.rp"],
+    ["Expansion","T<sub>5</sub> = T<sub>4</sub>(r<sub>c</sub>/r)<sup>γ−1</sup> = T<sub>1</sub>r<sub>p</sub>r<sub>c</sub><sup>γ</sup>","End of the power stroke.",null],
+    ["Heat","q<sub>in</sub> = c<sub>v</sub>(T<sub>3</sub> − T<sub>2</sub>) + c<sub>p</sub>(T<sub>4</sub> − T<sub>3</sub>),  q<sub>out</sub> = c<sub>v</sub>(T<sub>5</sub> − T<sub>1</sub>)","Sum of both heat-addition steps.","qin"],
+    ["Efficiency","η = 1 − (r<sub>p</sub>r<sub>c</sub><sup>γ</sup> − 1)/{r<sup>γ−1</sup>[(r<sub>p</sub> − 1) + γr<sub>p</sub>(r<sub>c</sub> − 1)]}","Becomes Otto when r<sub>c</sub> = 1 and Diesel when r<sub>p</sub> = 1.","cycle.dual"]]},
+  {id:"brayton",t:"Brayton cycle",n:"1→2 isentropic compression, 2→3 constant-pressure heat addition, 3→4 isentropic expansion, 4→1 constant-pressure heat rejection.",items:[
+    ["Compressor","T<sub>2</sub> = T<sub>1</sub>r<sub>p</sub><sup>(γ−1)/γ</sup>,  w<sub>c</sub> = c<sub>p</sub>(T<sub>2</sub> − T<sub>1</sub>)","Compressor exit state and work input.","brayton.rp"],
+    ["Turbine","T<sub>4</sub> = T<sub>3</sub>/r<sub>p</sub><sup>(γ−1)/γ</sup>,  w<sub>t</sub> = c<sub>p</sub>(T<sub>3</sub> − T<sub>4</sub>)","Turbine exit state and work output.","brayton.Tmax"],
+    ["Heat","q<sub>in</sub> = c<sub>p</sub>(T<sub>3</sub> − T<sub>2</sub>),  q<sub>out</sub> = c<sub>p</sub>(T<sub>4</sub> − T<sub>1</sub>)","Combustor and exhaust.","qin"],
+    ["Efficiency","η = 1 − 1/r<sub>p</sub><sup>(γ−1)/γ</sup> = 1 − T<sub>1</sub>/T<sub>2</sub>","Depends only on pressure ratio.","cycle.brayton"],
+    ["Back work ratio","r<sub>bw</sub> = w<sub>c</sub>/w<sub>t</sub>","Share of turbine work used to drive the compressor; often 40–60%.",null],
+    ["Pressure ratio for maximum net work","r<sub>p,opt</sub> = (T<sub>3</sub>/T<sub>1</sub>)<sup>γ/[2(γ−1)]</sup>","Gives T<sub>2</sub> = T<sub>4</sub> = √(T<sub>1</sub>T<sub>3</sub>).",null]]},
+  {id:"carnot",t:"Carnot cycle",n:"1→2 isothermal compression at T<sub>L</sub>, 2→3 isentropic compression, 3→4 isothermal expansion at T<sub>H</sub>, 4→1 isentropic expansion.",items:[
+    ["Isentropic link","v<sub>3</sub>/v<sub>2</sub> = (T<sub>L</sub>/T<sub>H</sub>)<sup>1/(γ−1)</sup>","Volume change needed to move between the two temperatures.",null],
+    ["Heat","q<sub>in</sub> = RT<sub>H</sub> ln(v<sub>4</sub>/v<sub>3</sub>),  q<sub>out</sub> = RT<sub>L</sub> ln(v<sub>1</sub>/v<sub>2</sub>)","Both isothermal steps share the same volume ratio.","e"],
+    ["Efficiency","η = 1 − T<sub>L</sub>/T<sub>H</sub>","Depends only on the reservoir temperatures.","cycle.carnot"]]},
+  {id:"perf",t:"Cycle performance",n:"Apply to every cycle.",items:[
+    ["Net work","w<sub>net</sub> = q<sub>in</sub> − q<sub>out</sub> = Σw","Useful work per kg per cycle.","wnet"],
+    ["Thermal efficiency","η = w<sub>net</sub>/q<sub>in</sub> = 1 − q<sub>out</sub>/q<sub>in</sub>","Fraction of heat turned into work.","eta"],
+    ["Mean effective pressure","MEP = w<sub>net</sub>/(v<sub>max</sub> − v<sub>min</sub>) = W/V<sub>s</sub>","Compares engines of different sizes.","mep"],
+    ["Carnot limit","η<sub>C</sub> = 1 − T<sub>min</sub>/T<sub>max</sub>","Best possible efficiency for the same temperature range.","carnotlim"]]},
+  {id:"engine",t:"Engine geometry and output",n:"Reciprocating engines. B and L in metres, N in rpm, n<sub>cyl</sub> cylinders.",items:[
+    ["Swept volume","V<sub>s</sub> = (π/4)B²L","Volume swept by one piston.","Vs"],
+    ["Clearance and total volume","V<sub>c</sub> = V<sub>s</sub>/(r − 1),  V<sub>1</sub> = V<sub>s</sub> + V<sub>c</sub>","From compression ratio r = V<sub>1</sub>/V<sub>c</sub>.","Vc"],
+    ["Displacement","V<sub>d</sub> = n<sub>cyl</sub>V<sub>s</sub>","Engine capacity.","disp"],
+    ["Air mass per cycle","m = P<sub>1</sub>V<sub>1</sub>/(RT<sub>1</sub>)","Trapped charge in one cylinder.","mair"],
+    ["Work and heat per cycle","W = m w<sub>net</sub>,  Q = m q<sub>in</sub>","Per cylinder per cycle.","Wc"],
+    ["Indicated power","P = W n<sub>cyl</sub> N/120 (four-stroke),  P = W n<sub>cyl</sub> N/60 (two-stroke)","A four-stroke cylinder fires every second revolution.","power"],
+    ["Torque","τ = P/ω,  ω = 2πN/60","Turning moment at the crankshaft.","torque"],
+    ["Mean piston speed","ū<sub>p</sub> = 2LN/60","Average piston speed.","piston"],
+    ["Air mass flow and heat rate","ṁ = m n<sub>cyl</sub> N/120,  Q̇ = ṁ q<sub>in</sub>","Flow rates for a four-stroke engine.","mdot"]]}
+];
+const NOMEN=[["P","Pressure","kPa"],["v","Specific volume","m³/kg"],["V","Volume","m³ or cm³"],["T","Absolute temperature","K"],["s","Specific entropy","kJ/kg·K"],["q","Heat per kg","kJ/kg"],["w","Work per kg","kJ/kg"],["m","Mass of air","kg"],["R","Gas constant of air, 0.287","kJ/kg·K"],["c<sub>p</sub>, c<sub>v</sub>","Specific heats","kJ/kg·K"],["γ","Ratio of specific heats, 1.4","–"],["r","Compression ratio","–"],["r<sub>c</sub>","Cut-off ratio","–"],["r<sub>p</sub>","Pressure ratio","–"],["η","Thermal efficiency","–"],["B, L","Bore, stroke","m"],["N","Engine speed","rpm"],["T<sub>H</sub>, T<sub>L</sub>","Hot and cold reservoir temperatures","K"]];
+function renderFormulas(){
+  $("#fToc").innerHTML=FG.map(g=>`<button type="button" class="tocb" data-to="${g.id}">${g.t}</button>`).join("")+`<button type="button" class="tocb" data-to="nomen">Symbols</button>`;
+  $("#fBody").innerHTML=FG.map(g=>`<section class="fg panel" id="fg-${g.id}"><h3>${GLOSS["cycle."+g.id]?term(g.t,"cycle."+g.id):g.t}</h3><p class="fn">${g.n}</p>
+    <dl class="fl">${g.items.map(([nm,eq,why,key])=>`<div class="fr"><dt>${key?term(nm,key):nm}</dt><dd><div class="eq">${eq}</div><p>${why}</p></dd></div>`).join("")}</dl></section>`).join("")+
+    `<section class="fg panel" id="fg-nomen"><h3>Symbols</h3><div class="scroll"><table><thead><tr><th>Symbol</th><th>Meaning</th><th>Units</th></tr></thead><tbody>${NOMEN.map(([a,b,c])=>`<tr><td class="eq">${a}</td><td class="name">${b}</td><td>${c}</td></tr>`).join("")}</tbody></table></div></section>`;
+  $("#fToc").addEventListener("click",e=>{const b=e.target.closest(".tocb");if(b){const el=document.getElementById("fg-"+b.dataset.to);if(el)el.scrollIntoView({behavior:reduce?"auto":"smooth",block:"start"});}});
+}
+
+/* ---------- pages ---------- */
+const PAGES={explorer:$("#view-explorer"),formulas:$("#view-formulas")};
+let curPage="";
+function route(){
+  const v=location.hash==="#formulas"?"formulas":"explorer";
+  if(v===curPage)return;const first=!curPage;curPage=v;
+  PAGES.explorer.hidden=v!=="explorer";PAGES.formulas.hidden=v!=="formulas";
+  document.querySelectorAll(".tabs a").forEach(a=>{if(a.dataset.view===v)a.setAttribute("aria-current","page");else a.removeAttribute("aria-current");});
+  hideTip();if(v==="explorer"){resize();eResize();}
+  if(!first)window.scrollTo(0,0);
+}
+window.addEventListener("hashchange",route);
+
+/* ---------- 3D machines (one per cycle) ---------- */
+const ecv=$("#ecv"),evp=$("#evp"),elab=$("#elabels"),pvC=$("#pv");
+const er=new THREE.WebGLRenderer({canvas:ecv,antialias:true,alpha:true});
+er.setPixelRatio(Math.min(window.devicePixelRatio||1,2));er.setClearColor(0x000000,0);
+const es=new THREE.Scene(),ecam=new THREE.PerspectiveCamera(32,1,0.1,300);
+es.add(new THREE.HemisphereLight(0xffffff,0x3a4450,0.75));
+const ed1=new THREE.DirectionalLight(0xffffff,0.75);ed1.position.set(5,8,7);es.add(ed1);
+const ed2=new THREE.DirectionalLight(0xffffff,0.3);ed2.position.set(-6,2,-5);es.add(ed2);
+const flashL=new THREE.PointLight(0xffc860,0,10);es.add(flashL);
+let eRoot=null,MC=null,eKey="",eLabels=[],eT=0,ePlay=!reduce,eSpeed=1,eVis=true,eLast=0,eCol={},TLn=null,cur=null,dotTex=null;
+const eO={theta:0.6,phi:1.3,radius:20,ty:0};
+const MACH={otto:"Four-stroke petrol engine",diesel:"Four-stroke diesel engine",dual:"Dual-combustion diesel engine",brayton:"Gas turbine",carnot:"Carnot piston–cylinder"};
+
+function readCols(){eCol={metal:tok("--metal"),metal2:tok("--metal-2"),glass:tok("--glass"),hot:tok("--hot"),cold:tok("--cold"),flame:tok("--flame"),neutral:tok("--neutral"),ink:tok("--ink"),ink2:tok("--ink-2"),line:tok("--line"),accent:tok("--accent")};}
+const phM=c=>new THREE.MeshPhongMaterial({color:new THREE.Color(c),shininess:80,specular:new THREE.Color(0x555555)});
+const glM=(c,o)=>new THREE.MeshPhongMaterial({color:new THREE.Color(c),transparent:true,opacity:o,side:THREE.DoubleSide,depthWrite:false,shininess:100});
+const cylM=(r1,r2,h,mat,seg)=>new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,h,seg||28),mat);
+const cylZ=(r,h,mat)=>{const m=cylM(r,r,h,mat);m.rotation.x=Math.PI/2;return m;};
+const VV=(x,y,z)=>new THREE.Vector3(x,y,z);
+function addEL(t,get,cls){const el=document.createElement("div");el.className="lbl "+(cls||"part");el.textContent=t;elab.appendChild(el);eLabels.push({el,get});}
+function circleTex(){if(dotTex)return dotTex;const c=document.createElement("canvas");c.width=c.height=64;const g=c.getContext("2d");
+  const gr=g.createRadialGradient(32,32,0,32,32,30);gr.addColorStop(0,"rgba(255,255,255,1)");gr.addColorStop(0.6,"rgba(255,255,255,.9)");gr.addColorStop(1,"rgba(255,255,255,0)");
+  g.fillStyle=gr;g.beginPath();g.arc(32,32,30,0,Math.PI*2);g.fill();dotTex=new THREE.CanvasTexture(c);return dotTex;}
+
+/* reciprocating engines: Otto, Diesel, Dual, Carnot */
+function buildRecip(){
+  const C=eCol,b=2,R0=b/2,u=b/eng.bore,a=eng.stroke*u/2,l=3.4*a,Hp=0.78*b,pc=0.34*b;
+  const vs=data.states.map(s=>s.v),vmin=Math.min(...vs),vmax=Math.max(...vs),ratio=vmax/vmin;
+  const hc=2*a/(ratio-1),yh=a+l+pc+hc,headH=0.6*b,M=phM(C.metal),M2=phM(C.metal2);
+  const top=cycle==="otto"?"spark":cycle==="carnot"?"plate":"injector",valves=cycle!=="carnot";
+  const yBot=(l-a)-(Hp-pc)-0.15,lh=yh-yBot;
+  const liner=new THREE.Mesh(new THREE.CylinderGeometry(R0*1.07,R0*1.07,lh,48,1,true),glM(C.glass,0.2));liner.position.y=yBot+lh/2;eRoot.add(liner);
+  [yBot,yh].forEach(y=>{const t=new THREE.Mesh(new THREE.TorusGeometry(R0*1.07,0.03,8,48),M2);t.rotation.x=Math.PI/2;t.position.y=y;eRoot.add(t);});
+  const head=new THREE.Mesh(new THREE.BoxGeometry(b*1.6,headH,b*1.3),glM(C.metal,top==="plate"?0.5:0.22));head.position.y=yh+headH/2;eRoot.add(head);
+  const he=new THREE.LineSegments(new THREE.EdgesGeometry(head.geometry),lineMat(C.metal2,0.8));he.position.copy(head.position);eRoot.add(he);
+  let iv=null,ev=null,flash=null,spray=null,hotB=null,coldB=null;
+  if(valves){
+    const runner=(x,dir,col)=>{const len=2.2,ang=Math.PI/3,mm=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,len,24,1,true),glM(col,0.4));
+      mm.position.set(x+dir*Math.sin(ang)*len/2,yh+0.3+Math.cos(ang)*len/2,0);mm.rotation.z=-dir*ang;eRoot.add(mm);};
+    runner(-0.5,-1,C.cold);runner(0.5,1,C.hot);
+    const valve=x=>{const g=new THREE.Group(),disc=cylM(0.38,0.3,0.08,M2);disc.position.y=0.04;const stem=cylM(0.055,0.055,headH+0.9,M);stem.position.y=(headH+0.9)/2;
+      const cap=cylM(0.16,0.16,0.1,M2);cap.position.y=headH+0.85;g.add(disc,stem,cap);g.position.set(x,yh,0);eRoot.add(g);return g;};
+    iv=valve(-0.5);ev=valve(0.5);
+  }
+  if(top==="spark"){
+    const plug=new THREE.Group(),hex=cylM(0.24,0.24,0.26,M,6);hex.position.y=headH+0.13;
+    const cer=cylM(0.13,0.16,0.8,phM("#F1F1EE"));cer.position.y=headH+0.66;const term=cylM(0.07,0.07,0.16,M2);term.position.y=headH+1.14;
+    const tip=cylM(0.05,0.05,headH,M2);tip.position.y=headH/2;plug.add(hex,cer,term,tip);plug.position.set(0,yh,0);eRoot.add(plug);
+  }
+  if(top==="injector"){
+    const inj=new THREE.Group(),body=cylM(0.17,0.17,1.1,M,20);body.position.y=headH+0.55;
+    const nut=cylM(0.24,0.24,0.22,M2,6);nut.position.y=headH+0.15;const tip=cylM(0.07,0.04,headH,M2);tip.position.y=headH/2;
+    const line=cylM(0.05,0.05,1.2,M2);line.rotation.z=Math.PI/2.6;line.position.set(0.5,headH+1.2,0);
+    inj.add(body,nut,tip,line);inj.position.set(0,yh,0);eRoot.add(inj);
+    const cg=new THREE.ConeGeometry(0.75,1,24,1,true);cg.translate(0,-0.5,0);
+    spray=new THREE.Mesh(cg,new THREE.MeshBasicMaterial({color:new THREE.Color(C.flame),transparent:true,opacity:0.5,side:THREE.DoubleSide,depthWrite:false}));
+    spray.position.set(0,yh,0);spray.visible=false;eRoot.add(spray);
+  }
+  if(top!=="plate"){
+    flash=new THREE.Mesh(new THREE.SphereGeometry(0.32,20,14),new THREE.MeshBasicMaterial({color:new THREE.Color(C.flame),transparent:true,opacity:0.9,depthWrite:false}));
+    flash.position.set(0,yh-0.15,0);flash.visible=false;eRoot.add(flash);flashL.position.set(0,yh-0.3,0);
+  }
+  if(top==="plate"){
+    const blk=(col,s)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(1.3,lh*0.55,1.5),new THREE.MeshPhongMaterial({color:new THREE.Color(col),transparent:true,opacity:0.85,emissive:new THREE.Color(col),emissiveIntensity:0}));
+      m.position.set(s*(R0*1.07+1.4),yh-lh*0.32,0);m.userData.s=s;eRoot.add(m);return m;};
+    hotB=blk(C.hot,1);coldB=blk(C.cold,-1);
+  }
+  const gas=new THREE.Mesh(new THREE.CylinderGeometry(R0*0.975,R0*0.975,1,40),new THREE.MeshBasicMaterial({color:new THREE.Color(C.cold),transparent:true,opacity:0.5,depthWrite:false}));
+  gas.geometry.translate(0,0.5,0);eRoot.add(gas);
+  const piston=new THREE.Group(),body=cylM(R0*0.985,R0*0.985,Hp,M,40);body.position.y=pc-Hp/2;piston.add(body);
+  [0.12,0.26,0.4].forEach(d=>{const t=new THREE.Mesh(new THREE.TorusGeometry(R0*0.99,0.028,8,48),M2);t.rotation.x=Math.PI/2;t.position.y=pc-d;piston.add(t);});
+  piston.add(cylZ(0.17,b*0.9,M2));eRoot.add(piston);
+  const rod=new THREE.Group(),beam=new THREE.Mesh(new THREE.BoxGeometry(0.26,l,0.18),M);beam.position.y=l/2;
+  const small=cylZ(0.26,0.22,M);small.position.y=l;rod.add(beam,small,cylZ(0.4,0.26,M));eRoot.add(rod);
+  const crank=new THREE.Group();crank.add(cylZ(0.28,b*1.5,M2));
+  const cp=cylZ(0.24,0.52,M2);cp.position.y=a;crank.add(cp);
+  [-1,1].forEach(s=>{const web=new THREE.Mesh(new THREE.BoxGeometry(0.8,a+0.95,0.16),M);web.position.set(0,(a-0.6)/2+0.15,s*0.34);
+    const cw=new THREE.Mesh(new THREE.BoxGeometry(1.7,0.6,0.16),M);cw.position.set(0,-0.75,s*0.34);crank.add(web,cw);});
+  eRoot.add(crank);
+  const Vs=Math.PI/4*eng.bore*eng.bore*eng.stroke/1000;
+  MC={type:"recip",a,l,pc,yh,hc,R0,piston,rod,crank,gas,iv,ev,flash,spray,hotB,coldB,vmin,vmax,Vs,Vc:Vs/(ratio-1),Lmax:Math.min(0.32,hc*0.9+0.05),fourStroke:valves};
+  const topY=yh+headH+1.6,bot=-1.2;eO.ty=(topY+bot)/2;eO.radius=Math.max(10,(topY-bot)*2.05);
+  if(top==="spark")addEL("Spark plug",()=>VV(0,yh+headH+1.55,0));
+  if(top==="injector")addEL("Fuel injector",()=>VV(0,yh+headH+1.55,0));
+  if(valves){addEL("Intake valve",()=>VV(-2.1,yh+headH+0.6,0));addEL("Exhaust valve",()=>VV(2.1,yh+headH+0.6,0));}
+  if(top==="plate"){addEL("Hot reservoir T_H",()=>VV(hotB.position.x,hotB.position.y+lh*0.33,0));addEL("Cold reservoir T_L",()=>VV(coldB.position.x,coldB.position.y+lh*0.33,0));addEL("Cylinder head",()=>VV(0,yh+headH+0.35,0));}
+  addEL("Cylinder",()=>VV(R0+0.95,yBot+lh*(top==="plate"?0.85:0.3),0));
+  addEL("Piston",()=>VV(-R0-0.9,piston.position.y+pc-Hp/2,0));
+  addEL("Connecting rod",()=>VV(rod.position.x*0.5-1.3,(rod.position.y+piston.position.y)/2,0));
+  addEL("Crankshaft",()=>VV(1.6,-0.5,0));
+}
+
+/* gas turbine: Brayton */
+const CASE=[[-4.4,1.35],[-3.4,1.3],[-0.6,0.9],[-0.3,1.15],[1.0,1.15],[1.25,0.95],[2.6,1.25],[3.6,0.9],[4.6,0.85]];
+const HUB=[[-4.4,0],[-4.0,0.32],[-3.4,0.38],[-0.6,0.62],[-0.3,0.45],[1.0,0.45],[1.25,0.6],[2.6,0.5],[3.6,0.25],[4.3,0]];
+function lerpK(K,x){if(x<=K[0][0])return K[0][1];for(let i=1;i<K.length;i++)if(x<=K[i][0]){const[a0,b0]=K[i-1],[a1,b1]=K[i];return b0+(b1-b0)*(x-a0)/(a1-a0);}return K[K.length-1][1];}
+function buildTurbine(){
+  const C=eCol,M=phM(C.metal),M2=phM(C.metal2);
+  const cg=new THREE.LatheGeometry(CASE.map(([x,r])=>new THREE.Vector2(r+0.05,x)),64);cg.rotateZ(-Math.PI/2);
+  eRoot.add(new THREE.Mesh(cg,glM(C.glass,0.16)));
+  [-3.4,-0.6,1.0,2.6,4.6].forEach(x=>{const t=new THREE.Mesh(new THREE.TorusGeometry(lerpK(CASE,x)+0.05,0.025,8,56),M2);t.rotation.y=Math.PI/2;t.position.x=x;eRoot.add(t);});
+  const rotor=new THREE.Group();
+  const hg=new THREE.LatheGeometry(HUB.map(([x,r])=>new THREE.Vector2(r,x)),48);hg.rotateZ(-Math.PI/2);rotor.add(new THREE.Mesh(hg,M2));
+  const stage=(x,n,mat,tw)=>{const hr=lerpK(HUB,x),cr=lerpK(CASE,x)-0.05,len=cr-hr,g=new THREE.BoxGeometry(0.05,len,0.26);g.translate(0,hr+len/2,0);
+    for(let j=0;j<n;j++){const m=new THREE.Mesh(g,mat);m.rotation.set(j*2*Math.PI/n,tw,0);m.position.x=x;rotor.add(m);}};
+  [-3.15,-2.6,-2.05,-1.5,-1.0].forEach(x=>stage(x,16,M,0.55));
+  [1.55,2.0,2.4].forEach(x=>stage(x,20,phM(C.hot),-0.6));
+  eRoot.add(rotor);
+  const liner=new THREE.Mesh(new THREE.CylinderGeometry(0.98,0.98,1.3,40,1,true),glM(C.metal,0.25));liner.rotation.z=Math.PI/2;liner.position.x=0.35;eRoot.add(liner);
+  const flame=new THREE.Mesh(new THREE.TorusGeometry(0.76,0.2,14,48),new THREE.MeshBasicMaterial({color:new THREE.Color(C.flame),transparent:true,opacity:0.6,depthWrite:false}));
+  flame.rotation.y=Math.PI/2;flame.position.x=0.35;eRoot.add(flame);
+  for(let j=0;j<8;j++){const a=j*Math.PI/4,n=cylM(0.05,0.05,0.5,M2,10);n.rotation.z=Math.PI/2;n.position.set(-0.35,0.78*Math.cos(a),0.78*Math.sin(a));eRoot.add(n);}
+  flashL.position.set(0.35,0,0);
+  const N=280,pos=new Float32Array(N*3),col=new Float32Array(N*3),seed=[];
+  for(let i=0;i<N;i++)seed.push({u0:Math.random(),rr:0.12+0.76*Math.random(),ang:Math.random()*Math.PI*2});
+  const pg=new THREE.BufferGeometry();pg.setAttribute("position",new THREE.BufferAttribute(pos,3));pg.setAttribute("color",new THREE.BufferAttribute(col,3));
+  const pts=new THREE.Points(pg,new THREE.PointsMaterial({size:0.17,vertexColors:true,map:circleTex(),transparent:true,depthWrite:false,alphaTest:0.05}));
+  eRoot.add(pts);
+  const dot=new THREE.Mesh(new THREE.SphereGeometry(0.12,16,12),phM(C.ink));eRoot.add(dot);
+  const Ts=data.states.map(s=>s.T);
+  MC={type:"turb",rotor,flame,pts,seed,pos,col,dot,segX:[[-4.3,-0.6],[-0.6,1.25],[1.25,2.6],[2.6,5.2]],Tmin:Math.min(...Ts),Tmax:Math.max(...Ts)};
+  eO.ty=0;eO.radius=14.5;
+  addEL("Intake",()=>VV(-4.9,0.9,0));addEL("Compressor",()=>VV(-2.1,1.85,0));addEL("Combustion chamber",()=>VV(0.35,1.75,0));
+  addEL("Turbine",()=>VV(1.95,1.85,0));addEL("Exhaust nozzle",()=>VV(4.2,1.3,0));addEL("Shaft",()=>VV(-0.2,-0.85,0.6));
+  [["1",-3.4],["2",-0.6],["3",1.25],["4",2.6]].forEach(([t,x])=>addEL(t,()=>VV(x,-lerpK(CASE,x)-0.3,0),"st"));
+}
+
+/* timelines */
+const NOTES={
+  otto:{isenU:"Both valves closed. The mixture is compressed isentropically, so pressure and temperature rise with no heat transfer.",
+    isoVA:"The spark plug fires at top dead centre. Heat is added at constant volume, so pressure and temperature jump.",
+    isenD:"Hot, high-pressure gas drives the piston down. Isentropic expansion delivers the cycle's work.",
+    isoVR:"The exhaust valve opens at bottom dead centre. Heat is rejected at constant volume as pressure falls to P₁."},
+  diesel:{isenU:"Only air is compressed, to a high ratio, until it is hot enough to ignite fuel on its own.",
+    isoPA:"Fuel is injected into the hot air and burns while the piston moves down, keeping pressure constant until cut-off.",
+    isenD:"Injection has stopped. The hot gas expands isentropically and drives the piston to bottom dead centre.",
+    isoVR:"The exhaust valve opens at bottom dead centre. Heat is rejected at constant volume as pressure falls to P₁."},
+  dual:{isenU:"Only air is compressed, to a high ratio, until it is hot enough to ignite fuel on its own.",
+    isoVA:"Injection starts at top dead centre. The first fuel burns almost instantly: constant-volume heat addition.",
+    isoPA:"The rest of the fuel burns as the piston moves down, at constant pressure until cut-off.",
+    isenD:"Injection has stopped. The hot gas expands isentropically and drives the piston to bottom dead centre.",
+    isoVR:"The exhaust valve opens at bottom dead centre. Heat is rejected at constant volume as pressure falls to P₁."},
+  carnot:{isoTR:"The cylinder touches the cold reservoir. The gas is compressed slowly and rejects heat at constant temperature T_L.",
+    isenU:"The cold reservoir is removed and the cylinder is insulated. Isentropic compression raises the gas from T_L to T_H.",
+    isoTA:"The cylinder touches the hot reservoir. The gas expands slowly and takes in heat at constant temperature T_H.",
+    isenD:"Insulated again. Isentropic expansion cools the gas back down to T_L."},
+  brayton:{isenU:"The axial compressor squeezes the incoming air isentropically, raising its pressure and temperature.",
+    isoPA:"Fuel burns in the combustion chamber at constant pressure, sharply raising the gas temperature.",
+    isenD:"Hot gas expands through the turbine. It drives the compressor through the shaft and leaves net work.",
+    isoPR:"Exhaust leaves to the atmosphere. The closed-cycle model treats this as constant-pressure heat rejection back to state 1."}};
+const SHORT={brayton:["Compressor","Combustor","Turbine","Exhaust"]};
+function noteKey(p){if(p.kind==="isen")return data.states[p.to-1].v<data.states[p.from-1].v?"isenU":"isenD";return p.kind+(p.q>0?"A":"R");}
+function buildTimeline(){
+  const pr=data.procs,st=data.states,n=st.length,segs=[];
+  const procSeg=(p,i,extra)=>Object.assign({type:"proc",pi:i,name:`${p.name} · ${p.from}→${p.to}`,note:(NOTES[cycle]||{})[noteKey(p)]||"",
+    fire:p.q>0&&(p.kind==="isoV"||p.kind==="isoP")?(cycle==="otto"?"spark":"inject"):null,blow:p.kind==="isoV"&&p.q<0,contact:p.kind==="isoT"?(p.q>0?"hot":"cold"):null},extra);
+  if(MC.type==="turb"){
+    const D=[1.3,0.9,1.0,0.9];pr.forEach((p,i)=>segs.push(procSeg(p,i,{d:D[i],short:SHORT.brayton[i]})));
+  }else{
+    const {a,l,vmin,vmax}=MC,acosV=v=>{const s=(v-vmin)/(vmax-vmin)*2*a,x=a+l-s;return Math.acos(Math.max(-1,Math.min(1,(x*x+a*a-l*l)/(2*a*x))));};
+    let th=Math.PI;
+    if(MC.fourStroke)segs.push({type:"intake",th0:0,th1:Math.PI,d:1,name:"Intake stroke",note:cycle==="otto"?"The intake valve is open. The piston moves down and draws in fresh air–fuel mixture at about P₁. Not part of the air-standard cycle.":"The intake valve is open. The piston moves down and draws in fresh air only at about P₁. Not part of the air-standard cycle."});
+    pr.forEach((p,i)=>{
+      const A=st[i],B=st[(i+1)%n];
+      if(p.kind==="isoV"){segs.push(procSeg(p,i,{th0:th,th1:th,d:0.45}));return;}
+      const base=Math.floor(th/(2*Math.PI)+1e-9)*2*Math.PI;
+      let tb=B.v<A.v?base+2*Math.PI-acosV(B.v):base+acosV(B.v);if(tb<th-1e-6)tb+=2*Math.PI;
+      segs.push(procSeg(p,i,{th0:th,th1:tb,d:Math.max(0.18,(tb-th)/Math.PI)}));th=tb;
+    });
+    if(MC.fourStroke)segs.push({type:"exhaust",th0:th,th1:th+Math.PI,d:1,name:"Exhaust stroke",note:"The piston rises and pushes burnt gas out through the exhaust valve. Not part of the air-standard cycle."});
+  }
+  const total=segs.reduce((s,g)=>s+g.d,0);
+  TLn={segs,total};if(eT>=total)eT=0;
+  const bar=$("#strokeBar");bar.style.gridTemplateColumns=segs.map(s=>s.d+"fr").join(" ");bar.innerHTML=segs.map(()=>"<i></i>").join("");lastTxt.bar=-1;
+  const L=MC.type==="turb"?["Section","Spec. volume","Pressure","Temp"]:["Crank","Volume","Pressure","Temp"];
+  const LK=MC.type==="turb"?["section","v","P","T"]:["crank","Vreal","P","T"];
+  ["rL1","rL2","rL3","rL4"].forEach((id,i)=>{const el=$("#"+id);el.textContent=L[i];el.dataset.term=LK[i];});
+}
+function segAt(t){let acc=0;const S=TLn.segs;for(let i=0;i<S.length;i++){if(t<acc+S[i].d)return{i,fr:(t-acc)/S[i].d,start:acc};acc+=S[i].d;}return{i:S.length-1,fr:1,start:TLn.total-S[S.length-1].d};}
+function stateOnProc(pi,v,fr){
+  const p=data.procs[pi],A=data.states[pi],B=data.states[(pi+1)%data.states.length];let T;
+  if(p.kind==="isoV"){T=A.T+(B.T-A.T)*fr;v=A.v;}
+  else if(p.kind==="isen")T=A.T*Math.pow(A.v/v,k-1);
+  else if(p.kind==="isoP")T=A.T*v/A.v;
+  else T=A.T;
+  const P=R*T/v;return{P,v,T,s:cp*Math.log(T/shared.T1)-R*Math.log(P/shared.P1)};
+}
+function ptOnProc(pi,fr){const pts=data.procs[pi].pts,fi=fr*(pts.length-1),i0=Math.min(pts.length-2,Math.floor(fi)),t=fi-i0,A=pts[i0],B=pts[i0+1];
+  return{P:A.P+(B.P-A.P)*t,v:A.v+(B.v-A.v)*t,T:A.T+(B.T-A.T)*t,s:A.s+(B.s-A.s)*t};}
+
+/* per-frame animation */
+const gasCol=new THREE.Color(),cA=new THREE.Color(),cB=new THREE.Color();
+function tColor(T,out){const Ts=data.states.map(s=>s.T),lo=Math.min(...Ts),hi=Math.max(...Ts),tt=Math.max(0,Math.min(1,(T-lo)/Math.max(1,hi-lo)));cA.set(eCol.cold);cB.set(eCol.hot);return out.copy(cA).lerp(cB,tt);}
+function frameRecip(S,fr){
+  const M=MC,a=M.a,l=M.l,th=S.th0+(S.th1-S.th0)*fr,sn=Math.sin(th),cs=Math.cos(th),x=a*cs+Math.sqrt(l*l-a*a*sn*sn);
+  M.piston.position.y=x;M.crank.rotation.z=-th;M.rod.position.set(a*sn,a*cs,0);M.rod.rotation.z=Math.atan2(a*sn,x-a*cs);
+  const crown=x+M.pc,room=Math.max(0,M.yh-crown-0.06);M.gas.position.y=crown;M.gas.scale.y=Math.max(0.001,M.yh-crown);
+  if(M.iv){let li=0,le=0;
+    if(S.type==="intake")li=M.Lmax*Math.sin(Math.PI*fr);
+    if(S.blow)le=M.Lmax*0.45*fr;
+    if(S.type==="exhaust")le=M.Lmax*Math.sin(Math.PI*(0.15+0.85*fr));
+    M.iv.position.y=M.yh-Math.min(li,room);M.ev.position.y=M.yh-Math.min(le,room);}
+  const v=M.vmin+(M.vmax-M.vmin)*(a+l-x)/(2*a);
+  let st=null,T=null,P=shared.P1;
+  if(S.type==="intake"){T=shared.T1;}
+  else if(S.type==="proc"){st=stateOnProc(S.pi,v,fr);T=st.T;P=st.P;}
+  const fire=S.fire,fi=fire?Math.sin(Math.PI*fr):0;
+  if(M.flash){const on=!!fire;M.flash.visible=on;const sc=fire==="spark"?0.4+1.3*fi:0.7+0.9*fi;M.flash.scale.setScalar(sc);M.flash.material.opacity=(fire==="spark"?0.85:0.55)*fi;flashL.intensity=(fire==="spark"?2.4:1.6)*fi;}
+  if(M.spray){M.spray.visible=fire==="inject";if(fire){const h=Math.max(0.05,Math.min(1.1,M.yh-crown-0.02));M.spray.scale.set(1,h,1);M.spray.material.opacity=0.3+0.3*Math.sin(Math.PI*fr);}}
+  if(M.hotB){[[M.hotB,"hot"],[M.coldB,"cold"]].forEach(([B,kk])=>{const on=S.contact===kk,s=B.userData.s,target=s*(M.R0*1.07+(on?0.66:1.5));
+    B.position.x+=(target-B.position.x)*0.18;B.material.emissiveIntensity=on?0.35+0.15*Math.sin(performance.now()/180):0;});}
+  if(S.type==="exhaust"){gasCol.set(eCol.neutral);M.gas.material.opacity=0.32;}
+  else{tColor(T,gasCol);const Ts=data.states.map(s=>s.T),tt=(T-Math.min(...Ts))/Math.max(1,Math.max(...Ts)-Math.min(...Ts));M.gas.material.opacity=0.3+0.3*Math.max(0,Math.min(1,tt));}
+  M.gas.material.color.copy(gasCol);
+  const Vcc=M.Vc+M.Vs*(v-M.vmin)/(M.vmax-M.vmin),deg=Math.round((th*180/Math.PI)%(M.fourStroke?720:360));
+  return{st,P,T,v,plotX:Vcc,vals:[deg+"°",f(Vcc,1)+" cm³",(P/100).toFixed(2)+" bar",S.type==="exhaust"?"exhaust":Math.round(T)+" K"]};
+}
+function frameTurb(S,fr,dt){
+  const M=MC;M.rotor.rotation.x-=dt*6*eSpeed*(ePlay?1:0);
+  const t=performance.now()/1000;M.flame.material.opacity=0.45+0.2*Math.sin(t*9)+0.1*Math.sin(t*23);flashL.intensity=1.2+0.3*Math.sin(t*11);
+  const segs=TLn.segs,tot=TLn.total,u=eT/tot,c=new THREE.Color();
+  const place=(uu,rr,ang,arr,off)=>{let acc=0,i=0;const tt=uu*tot;for(;i<segs.length-1;i++){if(tt<acc+segs[i].d)break;acc+=segs[i].d;}
+    const ff=Math.min(1,(tt-acc)/segs[i].d),[x0,x1]=M.segX[i],xx=x0+(x1-x0)*ff,hub=lerpK(HUB,xx),cas=lerpK(CASE,Math.min(xx,4.6))*(xx>4.6?1+(xx-4.6)*0.5:1);
+    const r=hub+rr*(cas-hub),a2=ang+uu*9;arr[off]=xx;arr[off+1]=r*Math.cos(a2);arr[off+2]=r*Math.sin(a2);return{i,ff};};
+  M.seed.forEach((s,j)=>{const uu=(s.u0+u)%1,{i,ff}=place(uu,s.rr,s.ang,M.pos,j*3);tColor(ptOnProc(i,ff).T,c);M.col[j*3]=c.r;M.col[j*3+1]=c.g;M.col[j*3+2]=c.b;});
+  M.pts.geometry.attributes.position.needsUpdate=true;M.pts.geometry.attributes.color.needsUpdate=true;
+  const tmpA=[0,0,0];place(u,0.55,0,tmpA,0);M.dot.position.set(tmpA[0],tmpA[1],tmpA[2]);
+  const st=ptOnProc(S.pi,fr);
+  return{st,P:st.P,T:st.T,v:st.v,plotX:st.v,vals:[S.short,st.v.toFixed(3)+" m³/kg",(st.P/100).toFixed(2)+" bar",Math.round(st.T)+" K"]};
+}
+let lastTxt={};
+function setTxt(id,t){if(lastTxt[id]!==t){lastTxt[id]=t;document.getElementById(id).textContent=t;return true;}return false;}
+function engineFrame(now){
+  if(!MC||!TLn){cur=null;return;}
+  const dt=Math.min(0.05,(now-(eLast||now))/1000);eLast=now;
+  if(ePlay)eT=(eT+dt*0.55*eSpeed)%TLn.total;
+  const {i,fr}=segAt(eT),S=TLn.segs[i];
+  const r=MC.type==="turb"?frameTurb(S,fr,dt):frameRecip(S,fr);
+  cur=r.st?{st:r.st,name:S.name,heat:data.procs[S.pi].heat}:{st:null,name:S.name,heat:"none"};
+  ecam.position.set(eO.radius*Math.sin(eO.phi)*Math.sin(eO.theta),eO.ty+eO.radius*Math.cos(eO.phi),eO.radius*Math.sin(eO.phi)*Math.cos(eO.theta));
+  ecam.lookAt(0,eO.ty,0);
+  if(eVis){er.render(es,ecam);
+    const w=evp.clientWidth,h=evp.clientHeight;
+    if(!elab.hidden)for(const L of eLabels){tmp.copy(L.get()).project(ecam);if(tmp.z>1){L.el.hidden=true;continue;}L.el.hidden=false;
+      L.el.style.transform=`translate(${((tmp.x+1)/2*w).toFixed(1)}px,${((1-tmp.y)/2*h).toFixed(1)}px) translate(-50%,-50%)`;}}
+  drawPlot(r.plotX,r.P,S);
+  if(setTxt("sName",S.name))$("#sName").dataset.term=S.type==="proc"?data.procs[S.pi].name:S.name;setTxt("sNote",S.note);
+  ["rTh","rV","rP","rT"].forEach((id,j)=>setTxt(id,r.vals[j]));
+  if(lastTxt.bar!==i){lastTxt.bar=i;document.querySelectorAll("#strokeBar i").forEach((el,j)=>el.classList.toggle("on",j===i));}
+}
+
+/* live P–V plot */
+function drawPlot(xCur,pCur,S){
+  if(!MC||!pvC.clientWidth)return;
+  const dpr=Math.min(window.devicePixelRatio||1,2),w=pvC.clientWidth,h=pvC.clientHeight;
+  if(pvC.width!==Math.round(w*dpr)||pvC.height!==Math.round(h*dpr)){pvC.width=Math.round(w*dpr);pvC.height=Math.round(h*dpr);}
+  const g=pvC.getContext("2d");g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,w,h);
+  const recip=MC.type==="recip",xOf=v=>recip?MC.Vc+MC.Vs*(v-MC.vmin)/(MC.vmax-MC.vmin):v;
+  let xMax=0,yMax=0;data.procs.forEach(p=>p.pts.forEach(q=>{xMax=Math.max(xMax,xOf(q.v));yMax=Math.max(yMax,q.P/100);}));xMax*=1.08;yMax*=1.1;
+  const mL=46,mR=12,mT=10,mB=30,X=x=>mL+x/xMax*(w-mL-mR),Y=p=>h-mB-(p/100)/yMax*(h-mT-mB);
+  const mono=getComputedStyle(document.body).getPropertyValue("--mono");
+  g.font="11px "+mono;g.lineWidth=1;g.strokeStyle=eCol.line;g.fillStyle=eCol.ink2;g.textAlign="right";g.textBaseline="middle";
+  niceTicks(0,yMax,4).forEach(t=>{const y=h-mB-t/yMax*(h-mT-mB);g.beginPath();g.moveTo(mL,y);g.lineTo(w-mR,y);g.stroke();g.fillText(fmtTick(t),mL-6,y);});
+  g.textAlign="center";g.textBaseline="top";
+  niceTicks(0,xMax,4).forEach(t=>{const x=X(t);g.beginPath();g.moveTo(x,mT);g.lineTo(x,h-mB);g.stroke();g.fillText(fmtTick(t),x,h-mB+5);});
+  g.save();g.translate(11,(h-mB)/2);g.rotate(-Math.PI/2);g.fillText("P (bar)",0,-6);g.restore();
+  g.textAlign="right";g.fillText(recip?"V (cm³)":"v (m³/kg)",w-mR,h-14);
+  const line=(pts,col,wd,dash)=>{g.strokeStyle=col;g.lineWidth=wd;g.setLineDash(dash||[]);g.beginPath();pts.forEach(([x,p],i)=>i?g.lineTo(X(x),Y(p)):g.moveTo(X(x),Y(p)));g.stroke();g.setLineDash([]);};
+  if(recip&&MC.fourStroke)line([[MC.Vc,shared.P1],[MC.Vc+MC.Vs,shared.P1]],eCol.ink2,1.2,[4,4]);
+  data.procs.forEach((p,i)=>{const on=S.type==="proc"&&S.pi===i,col=p.heat==="hot"?eCol.hot:p.heat==="cold"?eCol.cold:eCol.neutral;
+    line(p.pts.map(q=>[xOf(q.v),q.P]),on?eCol.accent:col,on?3:2);});
+  const sp=data.states.map(s=>[X(xOf(s.v)),Y(s.P)]),cx=sp.reduce((a,b)=>a+b[0],0)/sp.length,cy=sp.reduce((a,b)=>a+b[1],0)/sp.length;
+  g.fillStyle=eCol.ink;g.textAlign="center";g.textBaseline="middle";g.font="600 11px "+mono;
+  sp.forEach(([x,y],i)=>{const dx=x-cx,dy=y-cy,d=Math.hypot(dx,dy)||1;g.fillText(i+1,x+dx/d*11,y+dy/d*11);});
+  g.fillStyle=eCol.ink;g.beginPath();g.arc(X(xCur),Y(pCur),5.5,0,Math.PI*2);g.fill();
+  g.fillStyle=eCol.flame;g.beginPath();g.arc(X(xCur),Y(pCur),2.5,0,Math.PI*2);g.fill();
+}
+
+function rebuildMachine(){
+  const vs=data.states.map(s=>s.v),key=[cycle,eng.bore,eng.stroke,(Math.max(...vs)/Math.min(...vs)).toFixed(5),shared.P1,shared.T1].join("|");
+  if(key!==eKey||!MC){
+    eKey=key;readCols();
+    if(eRoot){es.remove(eRoot);disposeTree(eRoot);}
+    eRoot=new THREE.Group();es.add(eRoot);elab.innerHTML="";eLabels=[];flashL.intensity=0;
+    if(cycle==="brayton")buildTurbine();else buildRecip();
+    elab.hidden=!$("#elT").checked;$("#machName").textContent=MACH[cycle];$("#machName").dataset.term="mach."+cycle;
+  }else if(MC.type==="turb"){const Ts=data.states.map(s=>s.T);MC.Tmin=Math.min(...Ts);MC.Tmax=Math.max(...Ts);}
+  buildTimeline();
+}
+function eResize(){const w=evp.clientWidth,h=evp.clientHeight;if(!w||!h)return;er.setSize(w,h,false);ecam.aspect=w/h;ecam.fov=ecam.aspect<1?Math.min(58,32/ecam.aspect):32;ecam.updateProjectionMatrix();}
+new ResizeObserver(eResize).observe(evp);
+if(window.IntersectionObserver)new IntersectionObserver(en=>{eVis=en[0].isIntersecting;}).observe(evp);
+(function(){const p=new Map();let pin=0;
+  ecv.addEventListener("pointerdown",e=>{ecv.setPointerCapture(e.pointerId);p.set(e.pointerId,{x:e.clientX,y:e.clientY});if(p.size===2){const[a,b]=[...p.values()];pin=Math.hypot(a.x-b.x,a.y-b.y);}});
+  ecv.addEventListener("pointermove",e=>{if(!p.has(e.pointerId))return;const q=p.get(e.pointerId);
+    if(p.size===1){eO.theta-=(e.clientX-q.x)*0.008;eO.phi=Math.min(Math.PI-0.1,Math.max(0.1,eO.phi-(e.clientY-q.y)*0.008));}
+    p.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(p.size===2){const[a,b]=[...p.values()],dd=Math.hypot(a.x-b.x,a.y-b.y);if(pin>0)eO.radius=Math.min(60,Math.max(5,eO.radius*pin/dd));pin=dd;}});
+  const up=e=>{p.delete(e.pointerId);pin=0;};ecv.addEventListener("pointerup",up);ecv.addEventListener("pointercancel",up);
+  ecv.addEventListener("wheel",e=>{e.preventDefault();eO.radius=Math.min(60,Math.max(5,eO.radius*(1+e.deltaY*0.0012)));},{passive:false});
+})();
+$("#playB").textContent=ePlay?"Pause":"Play";
+$("#playB").addEventListener("click",()=>{ePlay=!ePlay;$("#playB").textContent=ePlay?"Pause":"Play";});
+$("#stepB").addEventListener("click",()=>{if(!TLn)return;const s=segAt(eT);eT=(s.start+TLn.segs[s.i].d+1e-4)%TLn.total;});
+$("#spd").addEventListener("input",e=>{eSpeed=parseFloat(e.target.value);});
+$("#elT").addEventListener("change",e=>{elab.hidden=!e.target.checked;});
+function updateCalc(){cO=calcOtto();renderCalc(cO);syncFields();}
+
+/* ---------- main ---------- */
+function update(){data=analyze();renderResults(data);rebuildScene(data);rebuildMachine();updateCalc();}
+const rethemer=()=>{if(data){rebuildScene(data);eKey="";rebuildMachine();}};
+if(window.matchMedia)matchMedia("(prefers-color-scheme: dark)").addEventListener("change",rethemer);
+new MutationObserver(rethemer).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+renderFormulas();route();renderCycles();renderInputs();renderFields();update();resize();eResize();requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
